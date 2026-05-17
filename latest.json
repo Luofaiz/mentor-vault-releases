@@ -1,7 +1,7 @@
 {
-  "version": "0.2.45",
-  "notes": "清理旧功能入口，聚焦导师资料与笔记。",
+  "version": "0.2.46",
+  "notes": "修复数据加载失败，恢复侧栏外链按钮。",
   "downloadUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe",
-  "downloadSha256": "5e956a1a6104c5606ada8c41f22b15f9399abf88a10eac7fdb4bff6027e69e32",
+  "downloadSha256": "2beb0bc9e59dfb2842519c2862d0f78943046c6d651e81f406f6da83adaa596b",
   "releaseUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest"
 }

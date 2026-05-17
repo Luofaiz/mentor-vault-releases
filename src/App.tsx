@@ -429,6 +429,7 @@ export default function App() {
         view={view}
         contactedProfessorCount={professorStats.contactedProfessorCount}
         activeProfessorCount={professorStats.activeProfessorCount}
+        onOpenExternalUrl={openExternalUrl}
         onChangeView={setView}
       />
 
@@ -472,7 +473,6 @@ export default function App() {
             onTrashProfessor={professorDirectory.moveToTrash}
             onRestoreProfessor={professorDirectory.restore}
             onPurgeProfessor={professorDirectory.purge}
-            onOpenExternalUrl={openExternalUrl}
             onCreateTimelineEvent={handleCreateTimelineEvent}
             onImportProfessors={professorDirectory.importRecords}
           />

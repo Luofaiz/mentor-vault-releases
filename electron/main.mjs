@@ -1165,6 +1165,18 @@ function normalizeTimelineEventRecord(event) {
   };
 }
 
+function normalizeDocumentNoteRecord(note) {
+  const now = Date.now();
+
+  return {
+    id: String(note?.id ?? crypto.randomUUID()),
+    title: String(note?.title ?? '').trim(),
+    body: String(note?.body ?? note?.content ?? '').trim(),
+    createdAt: typeof note?.createdAt === 'number' ? note.createdAt : now,
+    updatedAt: typeof note?.updatedAt === 'number' ? note.updatedAt : now,
+  };
+}
+
 function normalizeStringArray(value) {
   if (!Array.isArray(value)) {
     return [];

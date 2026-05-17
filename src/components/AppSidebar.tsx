@@ -2,6 +2,7 @@ import {
   BookOpenCheck,
   Building2,
   FileText,
+  Github,
   Settings,
   Trash2,
   Users,
@@ -20,13 +21,18 @@ interface AppSidebarProps {
   view: View;
   contactedProfessorCount: number;
   activeProfessorCount: number;
+  onOpenExternalUrl: (url: string) => void;
   onChangeView: (view: View) => void;
 }
+
+const PROJECT_GITHUB_URL = 'https://github.com/Luofaiz/mentor-vault';
+const CSBAOYAN_DDL_URL = 'https://ddl.csbaoyan.top/';
 
 export function AppSidebar({
   view,
   contactedProfessorCount,
   activeProfessorCount,
+  onOpenExternalUrl,
   onChangeView,
 }: AppSidebarProps) {
   const { t } = useI18n();
@@ -42,6 +48,26 @@ export function AppSidebar({
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-400">{t('appName')}</p>
             <p className="truncate text-lg font-semibold tracking-tight">{t('appSubtitle')}</p>
           </div>
+        </div>
+        <div className="mt-7 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => onOpenExternalUrl(PROJECT_GITHUB_URL)}
+            title="打开项目 GitHub"
+            aria-label="打开项目 GitHub"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-stone-950 text-white shadow-lg shadow-stone-900/15 transition-colors hover:bg-stone-800"
+          >
+            <Github className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onOpenExternalUrl(CSBAOYAN_DDL_URL)}
+            title="打开 CS 保研 DDL"
+            aria-label="打开 CS 保研 DDL"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-stone-950 shadow-lg shadow-stone-900/15 transition-colors hover:bg-stone-800"
+          >
+            <img src="/csbaoyan-ddl.svg" alt="" className="h-6 w-6" />
+          </button>
         </div>
       </div>
 
