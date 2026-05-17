@@ -24,10 +24,190 @@ interface SchoolDirectoryPageProps {
 const ALL_COLLEGES_ID = 'all-colleges';
 const COLLEGE_NOT_SET_ID = 'college-not-set';
 type DropPosition = 'before' | 'after';
+type SchoolTier = '985' | '211' | '双非';
+
+const PROJECT_985_SCHOOLS = new Set([
+  '北京大学',
+  '中国人民大学',
+  '清华大学',
+  '北京航空航天大学',
+  '北京理工大学',
+  '中国农业大学',
+  '北京师范大学',
+  '中央民族大学',
+  '南开大学',
+  '天津大学',
+  '大连理工大学',
+  '东北大学',
+  '吉林大学',
+  '哈尔滨工业大学',
+  '复旦大学',
+  '同济大学',
+  '上海交通大学',
+  '华东师范大学',
+  '南京大学',
+  '东南大学',
+  '浙江大学',
+  '中国科学技术大学',
+  '厦门大学',
+  '山东大学',
+  '中国海洋大学',
+  '武汉大学',
+  '华中科技大学',
+  '湖南大学',
+  '中南大学',
+  '中山大学',
+  '华南理工大学',
+  '四川大学',
+  '电子科技大学',
+  '重庆大学',
+  '西安交通大学',
+  '西北工业大学',
+  '西北农林科技大学',
+  '兰州大学',
+  '国防科技大学',
+]);
+
+const PROJECT_211_SCHOOLS = new Set([
+  '北京交通大学',
+  '北京工业大学',
+  '北京科技大学',
+  '北京化工大学',
+  '北京邮电大学',
+  '北京林业大学',
+  '北京中医药大学',
+  '北京外国语大学',
+  '中国传媒大学',
+  '中央财经大学',
+  '对外经济贸易大学',
+  '北京体育大学',
+  '中央音乐学院',
+  '中国政法大学',
+  '华北电力大学',
+  '天津医科大学',
+  '河北工业大学',
+  '太原理工大学',
+  '内蒙古大学',
+  '辽宁大学',
+  '大连海事大学',
+  '延边大学',
+  '东北师范大学',
+  '哈尔滨工程大学',
+  '东北农业大学',
+  '东北林业大学',
+  '华东理工大学',
+  '东华大学',
+  '上海外国语大学',
+  '上海财经大学',
+  '上海大学',
+  '苏州大学',
+  '南京航空航天大学',
+  '南京理工大学',
+  '中国矿业大学',
+  '河海大学',
+  '江南大学',
+  '南京农业大学',
+  '中国药科大学',
+  '南京师范大学',
+  '安徽大学',
+  '合肥工业大学',
+  '福州大学',
+  '南昌大学',
+  '中国石油大学',
+  '郑州大学',
+  '中国地质大学',
+  '武汉理工大学',
+  '华中农业大学',
+  '华中师范大学',
+  '中南财经政法大学',
+  '湖南师范大学',
+  '暨南大学',
+  '华南师范大学',
+  '海南大学',
+  '广西大学',
+  '西南交通大学',
+  '四川农业大学',
+  '西南大学',
+  '西南财经大学',
+  '贵州大学',
+  '云南大学',
+  '西藏大学',
+  '西北大学',
+  '西安电子科技大学',
+  '长安大学',
+  '陕西师范大学',
+  '青海大学',
+  '宁夏大学',
+  '新疆大学',
+  '石河子大学',
+  '第二军医大学',
+  '第四军医大学',
+]);
+
+const SCHOOL_NAME_ALIASES = new Map([
+  ['北大', '北京大学'],
+  ['清华', '清华大学'],
+  ['人大', '中国人民大学'],
+  ['北航', '北京航空航天大学'],
+  ['北理工', '北京理工大学'],
+  ['北师大', '北京师范大学'],
+  ['南大', '南京大学'],
+  ['东大', '东南大学'],
+  ['浙大', '浙江大学'],
+  ['中科大', '中国科学技术大学'],
+  ['科大', '中国科学技术大学'],
+  ['厦大', '厦门大学'],
+  ['山大', '山东大学'],
+  ['武大', '武汉大学'],
+  ['华科', '华中科技大学'],
+  ['湖大', '湖南大学'],
+  ['中大', '中山大学'],
+  ['川大', '四川大学'],
+  ['电子科大', '电子科技大学'],
+  ['重大', '重庆大学'],
+  ['西交', '西安交通大学'],
+  ['西工大', '西北工业大学'],
+  ['哈工大', '哈尔滨工业大学'],
+  ['北邮', '北京邮电大学'],
+  ['西电', '西安电子科技大学'],
+  ['南航', '南京航空航天大学'],
+  ['南理工', '南京理工大学'],
+]);
 
 function getDropPosition(event: DragEvent<HTMLElement>): DropPosition {
   const rect = event.currentTarget.getBoundingClientRect();
   return event.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+}
+
+function normalizeSchoolNameForTier(school: string) {
+  return school
+    .replace(/\s+/g, '')
+    .replace(/（.*?）|\(.*?\)/g, '')
+    .replace(/[()（）]/g, '')
+    .replace(/(分校|校区|研究院)$/g, '');
+}
+
+function isKnownTierSchool(school: string, knownSchools: Set<string>) {
+  if (knownSchools.has(school)) {
+    return true;
+  }
+
+  return Array.from(knownSchools).some((knownSchool) => school.startsWith(knownSchool));
+}
+
+function getSchoolTier(school: string): SchoolTier {
+  const normalized = normalizeSchoolNameForTier(school);
+  const canonical = SCHOOL_NAME_ALIASES.get(normalized) ?? normalized;
+
+  if (isKnownTierSchool(canonical, PROJECT_985_SCHOOLS)) {
+    return '985';
+  }
+
+  if (isKnownTierSchool(canonical, PROJECT_211_SCHOOLS)) {
+    return '211';
+  }
+
+  return '双非';
 }
 
 export function SchoolDirectoryPage({
@@ -351,6 +531,7 @@ export function SchoolDirectoryPage({
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto py-1 pr-1">
                 {schoolGroups.map((group) => {
                   const selected = selectedGroup?.school === group.school;
+                  const schoolTier = getSchoolTier(group.school);
                   return (
                     <button
                       key={group.school}
@@ -393,7 +574,17 @@ export function SchoolDirectoryPage({
                       )}
                       <div className="flex items-center justify-between gap-3">
                         <span className="truncate text-sm font-semibold">{group.school}</span>
-                        <span className={`text-xs ${selected ? 'text-stone-300' : 'text-stone-400'}`}>{group.professors.length}</span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          <span
+                            className={cn(
+                              'rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none',
+                              selected ? 'bg-white/15 text-stone-200' : 'bg-stone-200 text-stone-500',
+                            )}
+                          >
+                            {schoolTier}
+                          </span>
+                          <span className={`text-xs ${selected ? 'text-stone-300' : 'text-stone-400'}`}>{group.professors.length}</span>
+                        </span>
                       </div>
                       <p className={`mt-2 line-clamp-2 text-xs leading-5 ${selected ? 'text-stone-300' : 'text-stone-500'}`}>
                         {group.statusCounts.map((item) => `${getStatusLabel(item.status)} ${item.count}`).join(' / ')}

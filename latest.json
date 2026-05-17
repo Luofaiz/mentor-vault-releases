@@ -1,6 +1,6 @@
 {
-  "version": "0.2.39",
-  "notes": "优化清理缓存成功提示显示体验。",
+  "version": "0.2.40",
+  "notes": "在院校索引中显示院校层次。",
   "downloadUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe",
   "releaseUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest"
 }
