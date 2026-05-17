@@ -3,7 +3,6 @@ import {
   createProfessor,
   importProfessors,
   listProfessors,
-  markProfessorEmailSent,
   purgeProfessor,
   restoreProfessor,
   trashProfessor,
@@ -67,12 +66,6 @@ export function useProfessorDirectory() {
     return result;
   };
 
-  const markMailSent = async (id: string, sentAt?: string) => {
-    const result = await markProfessorEmailSent(id, sentAt);
-    await refresh();
-    return result;
-  };
-
   return {
     professors,
     isLoading,
@@ -84,6 +77,5 @@ export function useProfessorDirectory() {
     restore,
     purge,
     importRecords,
-    markMailSent,
   };
 }

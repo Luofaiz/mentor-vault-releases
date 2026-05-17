@@ -291,19 +291,6 @@ function createProfessorRecord(draft: ProfessorDraft): Professor {
   };
 }
 
-function applyMailSentToProfessor(professor: Professor, sentDate: string): ProfessorDraft {
-  const nextStatus = professor.status === 'Pending' || professor.status === 'Drafting' ? 'Contacted' : professor.status;
-  const nextFirstContactDate = professor.firstContactDate || sentDate;
-  const nextLastContactDate = professor.lastContactDate && professor.lastContactDate > sentDate ? professor.lastContactDate : sentDate;
-
-  return {
-    ...professorToDraft(professor),
-    status: nextStatus,
-    firstContactDate: nextFirstContactDate,
-    lastContactDate: nextLastContactDate,
-  };
-}
-
 function triggerDownload(blob: Blob, filename: string) {
   const url = window.URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -423,13 +410,19 @@ function mergeProfessors(current: Professor[], drafts: ProfessorDraft[]): { prof
 
   drafts.forEach((draft) => {
     const normalized = normalizeDraft(draft);
-    if (!normalized.name || !normalized.school || !normalized.email) {
+    if (!normalized.name || !normalized.school) {
       skipped += 1;
       return;
     }
 
     const emailKey = normalized.email.toLowerCase();
-    const existingIndex = nextProfessors.findIndex((professor) => professor.email.toLowerCase() === emailKey);
+    const existingIndex = emailKey
+      ? nextProfessors.findIndex((professor) => professor.email.toLowerCase() === emailKey)
+      : nextProfessors.findIndex(
+          (professor) =>
+            professor.name.trim().toLowerCase() === normalized.name.toLowerCase() &&
+            professor.school.trim().toLowerCase() === normalized.school.toLowerCase(),
+        );
     if (existingIndex < 0) {
       nextProfessors.unshift(createProfessorRecord(normalized));
       created += 1;
@@ -449,11 +442,6 @@ function mergeProfessors(current: Professor[], drafts: ProfessorDraft[]): { prof
     professors: nextProfessors,
     result: { created, updated, skipped },
   };
-}
-
-async function getProfessorById(id: string) {
-  const professors = await listProfessors({ includeDeleted: true });
-  return professors.find((professor) => professor.id === id) ?? null;
 }
 
 export async function listProfessors(filters: ProfessorFilters = {}) {
@@ -548,15 +536,6 @@ export async function purgeProfessor(id: string) {
 
   const current = readBrowserStore();
   writeBrowserStore(current.professors.filter((professor) => professor.id !== id));
-}
-
-export async function markProfessorEmailSent(id: string, sentAt = new Date().toISOString().slice(0, 10)) {
-  const professor = await getProfessorById(id);
-  if (!professor) {
-    return null;
-  }
-
-  return updateProfessor(id, applyMailSentToProfessor(professor, sentAt));
 }
 
 export async function importProfessors(drafts: ProfessorDraft[]) {

@@ -1,7 +1,7 @@
 {
-  "version": "0.2.44",
-  "notes": "优化全量更新安装器启动方式。",
+  "version": "0.2.45",
+  "notes": "清理旧功能入口，聚焦导师资料与笔记。",
   "downloadUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe",
-  "downloadSha256": "c4ccffd862be10052b819a78098247e53a9a39ce706ff534244047f49d05cfa6",
+  "downloadSha256": "5e956a1a6104c5606ada8c41f22b15f9399abf88a10eac7fdb4bff6027e69e32",
   "releaseUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest"
 }

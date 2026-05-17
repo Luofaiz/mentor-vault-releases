@@ -1,5 +1,5 @@
 import { useDeferredValue, useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { Download, Plus, Search, Upload } from 'lucide-react';
+import { Download, Github, Plus, Search, Upload } from 'lucide-react';
 import { ProfessorCard } from '../components/ProfessorCard';
 import { ProfessorFormDialog } from '../components/ProfessorFormDialog';
 import { ProfessorTimelineDrawer } from '../components/ProfessorTimelineDrawer';
@@ -22,6 +22,7 @@ interface ProfessorDirectoryPageProps {
   professors: Professor[];
   isLoading: boolean;
   error: string | null;
+  onOpenExternalUrl: (url: string) => void;
   onCreateProfessor: (draft: ProfessorDraft) => Promise<void>;
   onUpdateProfessor: (id: string, draft: ProfessorDraft) => Promise<void>;
   onTrashProfessor: (id: string) => Promise<void>;
@@ -30,6 +31,9 @@ interface ProfessorDirectoryPageProps {
   onCreateTimelineEvent: (draft: TimelineEventDraft) => Promise<void>;
   onImportProfessors: (drafts: ProfessorDraft[]) => Promise<{ created: number; updated: number; skipped: number }>;
 }
+
+const PROJECT_GITHUB_URL = 'https://github.com/Luofaiz/mentor-vault';
+const CSBAOYAN_DDL_URL = 'https://ddl.csbaoyan.top/';
 
 function compareDateValue(left: string, right: string, direction: 'asc' | 'desc') {
   if (!left && !right) {
@@ -50,6 +54,7 @@ export function ProfessorDirectoryPage({
   professors,
   isLoading,
   error,
+  onOpenExternalUrl,
   onCreateProfessor,
   onUpdateProfessor,
   onTrashProfessor,
@@ -202,7 +207,25 @@ export function ProfessorDirectoryPage({
             <p className="mt-3 max-w-2xl text-sm leading-7 text-stone-500">{subtitle}</p>
           </div>
           {mode === 'active' && (
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => onOpenExternalUrl(PROJECT_GITHUB_URL)}
+                title="打开项目 GitHub"
+                aria-label="打开项目 GitHub"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-700 transition-colors hover:bg-stone-50"
+              >
+                <Github className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenExternalUrl(CSBAOYAN_DDL_URL)}
+                title="打开 CS 保研 DDL"
+                aria-label="打开 CS 保研 DDL"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-stone-200 bg-white transition-colors hover:bg-stone-50"
+              >
+                <img src="/csbaoyan-ddl.svg" alt="" className="h-6 w-6" />
+              </button>
               <button
                 onClick={() => exportProfessorsToExcel(professors.filter((professor) => !professor.deletedAt))}
                 className="inline-flex items-center justify-center space-x-2 rounded-full border border-stone-200 bg-white px-5 py-3 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50"

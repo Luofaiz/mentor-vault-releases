@@ -448,7 +448,6 @@ export default function App() {
             onPauseUpdateDownload={pauseUpdateDownload}
             onResumeUpdateDownload={resumeUpdateDownload}
             onCancelUpdateDownload={cancelUpdateDownload}
-            onOpenExternalUrl={openExternalUrl}
           />
         ) : view === 'schools' ? (
           <SchoolDirectoryPage
@@ -473,6 +472,7 @@ export default function App() {
             onTrashProfessor={professorDirectory.moveToTrash}
             onRestoreProfessor={professorDirectory.restore}
             onPurgeProfessor={professorDirectory.purge}
+            onOpenExternalUrl={openExternalUrl}
             onCreateTimelineEvent={handleCreateTimelineEvent}
             onImportProfessors={professorDirectory.importRecords}
           />
