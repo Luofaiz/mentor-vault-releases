@@ -42,6 +42,17 @@ export interface VibeDesktopApi {
     resumeUpdateDownload?: () => Promise<{ ok: boolean }>;
     cancelUpdateDownload?: () => Promise<{ ok: boolean }>;
     clearUpdateCache?: () => Promise<{ ok: true; freedBytes: number; removedPaths: string[] }>;
+    getDataDirectoryInfo?: () => Promise<DataDirectoryInfo>;
+    openDataDirectory?: () => Promise<{ ok: true }>;
+    chooseDataDirectory?: () => Promise<
+      | { canceled: true }
+      | { canceled: false; dataDir: string; copiedFiles: DataDirectoryCopyResult[]; restartRequired: true }
+    >;
+    createDataBackup?: () => Promise<{ canceled: true } | { canceled: false; filePath: string }>;
+    restoreDataBackup?: () => Promise<
+      | { canceled: true }
+      | { canceled: false; restoredFrom: string; previousBackupPath: string }
+    >;
     onUpdateDownloadProgress?: (callback: (progress: UpdateDownloadProgress) => void) => () => void;
   };
   professors: {
@@ -107,6 +118,27 @@ export interface UpdateDownloadProgress {
   bytesPerSecond: number;
   remainingSeconds?: number;
   percent?: number;
+}
+
+export interface DataDirectoryFileInfo {
+  path: string;
+  exists: boolean;
+  size: number;
+  updatedAt: number | null;
+}
+
+export interface DataDirectoryInfo {
+  dataDir: string;
+  defaultDataDir: string;
+  isCustomDataDir: boolean;
+  storePath: string;
+  files: DataDirectoryFileInfo[];
+}
+
+export interface DataDirectoryCopyResult {
+  fileName: string;
+  from: string | null;
+  to: string;
 }
 
 export function getDesktopApi(): VibeDesktopApi | null {
