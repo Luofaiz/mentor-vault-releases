@@ -1,6 +1,7 @@
 {
-  "version": "0.2.41",
-  "notes": "更新下载改为使用系统代理。",
+  "version": "0.2.42",
+  "notes": "增加全量更新安装包校验。",
   "downloadUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe",
+  "downloadSha256": "c83899c1753594414bfab27f2f1c9091ea373522ec09c67191a4ac0f17116542",
   "releaseUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest"
 }

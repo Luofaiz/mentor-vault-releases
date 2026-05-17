@@ -31,11 +31,12 @@ export interface VibeDesktopApi {
       updateAvailable: boolean;
       downloadUrl?: string;
       downloadUrls?: string[];
+      downloadSha256ByUrl?: Record<string, string>;
       releaseUrl?: string;
       notes?: string;
     }>;
     openExternalUrl: (url: string) => Promise<void>;
-    installUpdate: (downloadUrl: string | string[]) => Promise<{ ok: true }>;
+    installUpdate: (update: string | string[] | { downloadUrls: string[]; downloadSha256ByUrl?: Record<string, string> }) => Promise<{ ok: true }>;
     installDifferentialUpdate?: (latestVersion?: string) => Promise<{ ok: true; mode: 'differential' }>;
     pauseUpdateDownload?: () => Promise<{ ok: boolean }>;
     resumeUpdateDownload?: () => Promise<{ ok: boolean }>;

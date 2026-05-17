@@ -16,6 +16,7 @@ interface AvailableUpdate {
   latestVersion: string;
   notes?: string;
   downloadUrls: string[];
+  downloadSha256ByUrl: Record<string, string>;
   releaseUrl?: string;
   canInstallDifferential: boolean;
 }
@@ -57,6 +58,10 @@ function formatUpdateErrorMessage(error: unknown, prefix = '检查更新失败')
 
   if (/403|forbidden|rate limit|rate exceeded/.test(lowerMessage)) {
     return format('GitHub 暂时拒绝访问或触发访问频率限制，请稍后再试。');
+  }
+
+  if (/sha256|hash|digest|校验|完整|篡改/.test(lowerMessage)) {
+    return format('安装包校验失败。文件可能下载不完整或被篡改，请重新下载，或打开发布页手动下载。');
   }
 
   if (/5\d{2}|bad gateway|service unavailable|gateway timeout/.test(lowerMessage)) {
@@ -181,6 +186,7 @@ export default function App() {
         latestVersion: result.latestVersion,
         notes: formatUpdateNotes(result.notes),
         downloadUrls,
+        downloadSha256ByUrl: result.downloadSha256ByUrl ?? {},
         releaseUrl: result.releaseUrl,
         canInstallDifferential: Boolean(desktopApi.system.installDifferentialUpdate),
       });
@@ -265,7 +271,10 @@ export default function App() {
     setUpdateDownloadProgress(null);
     try {
       showUpdateMessage('正在下载完整新版安装程序。下载完成后会启动安装程序并关闭当前程序。');
-      await desktopApi.system.installUpdate(availableUpdate.downloadUrls);
+      await desktopApi.system.installUpdate({
+        downloadUrls: availableUpdate.downloadUrls,
+        downloadSha256ByUrl: availableUpdate.downloadSha256ByUrl,
+      });
     } catch (error) {
       setUpdateDownloadProgress(null);
       if (isCancelingUpdateDownloadRef.current) {

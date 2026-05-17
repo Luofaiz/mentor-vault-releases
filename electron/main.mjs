@@ -242,6 +242,7 @@ function normalizeUpdateManifest(manifest) {
     new Set(downloadUrlCandidates.map((url) => String(url ?? '').trim()).filter(Boolean)),
   );
   const downloadUrl = downloadUrls[0] ?? '';
+  const downloadSha256ByUrl = normalizeDownloadSha256ByUrl(downloadUrls, manifest);
   const notes = String(manifest?.notes ?? manifest?.body ?? '').trim();
   const releaseUrl = String(manifest?.releaseUrl ?? manifest?.html_url ?? '').trim();
 
@@ -260,6 +261,7 @@ function normalizeUpdateManifest(manifest) {
     latestVersion,
     downloadUrl,
     downloadUrls,
+    downloadSha256ByUrl,
     releaseUrl,
     notes,
   };
@@ -287,6 +289,7 @@ async function checkForUpdates() {
     updateAvailable,
     downloadUrl: manifest.downloadUrl,
     downloadUrls: manifest.downloadUrls,
+    downloadSha256ByUrl: manifest.downloadSha256ByUrl,
     releaseUrl: manifest.releaseUrl,
     notes: manifest.notes,
   };
@@ -666,7 +669,31 @@ function normalizeDownloadUrls(input) {
   return Array.from(new Set(values.map((url) => String(url ?? '').trim()).filter(Boolean)));
 }
 
-async function downloadUpdateInstaller(downloadUrl, webContents) {
+function normalizeSha256(value) {
+  const hash = String(value ?? '').trim().toLowerCase();
+  return /^[a-f0-9]{64}$/.test(hash) ? hash : '';
+}
+
+function normalizeDownloadSha256ByUrl(downloadUrls, manifest) {
+  const fallbackHash = normalizeSha256(manifest?.downloadSha256 ?? manifest?.sha256);
+  const manifestHashes =
+    manifest?.downloadHashes && typeof manifest.downloadHashes === 'object' && !Array.isArray(manifest.downloadHashes)
+      ? manifest.downloadHashes
+      : {};
+
+  return Object.fromEntries(
+    downloadUrls
+      .map((url) => [url, normalizeSha256(manifestHashes[url]) || fallbackHash])
+      .filter(([, hash]) => Boolean(hash)),
+  );
+}
+
+async function calculateFileSha256(filePath) {
+  const buffer = await readFile(filePath);
+  return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
+async function downloadUpdateInstaller(downloadUrl, expectedSha256, webContents) {
   const parsed = new URL(String(downloadUrl ?? '').trim());
   if (!['http:', 'https:'].includes(parsed.protocol)) {
     throw new Error('更新安装包地址必须使用 http 或 https。');
@@ -738,6 +765,14 @@ async function downloadUpdateInstaller(downloadUrl, webContents) {
       remainingSeconds: 0,
       percent: 100,
     });
+    const normalizedExpectedSha256 = normalizeSha256(expectedSha256);
+    if (normalizedExpectedSha256) {
+      const actualSha256 = await calculateFileSha256(installerPath);
+      if (actualSha256 !== normalizedExpectedSha256) {
+        await removeFileIfExists(installerPath);
+        throw new Error('更新安装包校验失败。下载文件可能不完整或被篡改，请重新下载，或打开 GitHub Release 手动下载。');
+      }
+    }
     return installerPath;
   } catch (error) {
     if (task.isCanceled) {
@@ -782,12 +817,20 @@ function startUpdateInstallerAfterQuit(installerPath) {
   child.unref();
 }
 
-async function installUpdate(downloadUrl, webContents) {
+async function installUpdate(updateInput, webContents) {
   if (process.platform !== 'win32') {
     throw new Error('当前自动安装更新只支持 Windows。');
   }
 
-  const downloadUrls = normalizeDownloadUrls(downloadUrl);
+  const downloadUrls = normalizeDownloadUrls(
+    updateInput && typeof updateInput === 'object' && !Array.isArray(updateInput)
+      ? updateInput.downloadUrls ?? updateInput.downloadUrl
+      : updateInput,
+  );
+  const downloadSha256ByUrl =
+    updateInput && typeof updateInput === 'object' && !Array.isArray(updateInput) && updateInput.downloadSha256ByUrl
+      ? updateInput.downloadSha256ByUrl
+      : {};
   if (downloadUrls.length === 0) {
     throw new Error('没有可用的更新安装包下载地址。');
   }
@@ -795,8 +838,9 @@ async function installUpdate(downloadUrl, webContents) {
   let installerPath = '';
   let lastError = null;
   for (let index = 0; index < downloadUrls.length; index += 1) {
+    const downloadUrl = downloadUrls[index];
     try {
-      installerPath = await downloadUpdateInstaller(downloadUrls[index], webContents);
+      installerPath = await downloadUpdateInstaller(downloadUrl, downloadSha256ByUrl[downloadUrl], webContents);
       break;
     } catch (error) {
       lastError = error;
