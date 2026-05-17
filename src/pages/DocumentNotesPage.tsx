@@ -217,6 +217,7 @@ export function DocumentNotesPage() {
   const editorRef = useRef<HTMLDivElement | null>(null);
   const lastSavedSnapshotRef = useRef('');
   const lastEditorBodyRef = useRef('');
+  const saveRequestSeqRef = useRef(0);
   const savedEditorSelectionRef = useRef<Range | null>(null);
 
   const orderedNotes = useMemo<DocumentNote[]>(
@@ -256,6 +257,7 @@ export function DocumentNotesPage() {
       setDraft(createFallbackNote());
       lastSavedSnapshotRef.current = '';
       lastEditorBodyRef.current = '';
+      saveRequestSeqRef.current += 1;
       setSaveState('idle');
       return;
     }
@@ -266,6 +268,7 @@ export function DocumentNotesPage() {
       title: selectedNote.title,
       body: selectedNote.body,
     });
+    saveRequestSeqRef.current += 1;
     setSaveState('saved');
   }, [selectedNote]);
 
@@ -289,23 +292,32 @@ export function DocumentNotesPage() {
       body: draft.body,
     });
     if (snapshot === lastSavedSnapshotRef.current) {
+      setSaveState((current) => (current === 'saving' ? 'saved' : current));
       return;
     }
 
     setSaveState('saving');
+    const requestSeq = saveRequestSeqRef.current + 1;
+    saveRequestSeqRef.current = requestSeq;
     const timer = window.setTimeout(() => {
       void save(selectedNoteId, {
         title: draft.title,
         body: draft.body,
       }).then((record) => {
-        if (!record) {
+        if (!record || saveRequestSeqRef.current !== requestSeq || record.id !== selectedNoteId) {
           return;
         }
-        lastSavedSnapshotRef.current = JSON.stringify({
+        const savedSnapshot = JSON.stringify({
           title: record.title,
           body: record.body,
         });
-        setSaveState('saved');
+        lastSavedSnapshotRef.current = savedSnapshot;
+        setSaveState(savedSnapshot === snapshot ? 'saved' : 'saving');
+      }).catch((saveError) => {
+        console.error(saveError);
+        if (saveRequestSeqRef.current === requestSeq) {
+          setSaveState('idle');
+        }
       });
     }, 600);
 

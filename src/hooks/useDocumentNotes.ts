@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { deleteNote, listNotes, saveNote } from '../lib/notes';
 import { useI18n } from '../lib/i18n';
 import type { DocumentNote, DocumentNoteInput } from '../types/note';
@@ -27,7 +27,7 @@ export function useDocumentNotes() {
     void refresh();
   }, []);
 
-  const save = async (id: string | null, input: DocumentNoteInput) => {
+  const save = useCallback(async (id: string | null, input: DocumentNoteInput) => {
     const record = await saveNote(id, input);
     if (record) {
       setNotes((current) =>
@@ -38,12 +38,12 @@ export function useDocumentNotes() {
       );
     }
     return record;
-  };
+  }, []);
 
-  const remove = async (id: string) => {
+  const remove = useCallback(async (id: string) => {
     await deleteNote(id);
     setNotes((current) => current.filter((note) => note.id !== id));
-  };
+  }, []);
 
   return {
     notes,

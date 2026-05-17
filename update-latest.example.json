@@ -1,6 +1,6 @@
 {
-  "version": "0.2.37",
-  "notes": "优化更新与缓存清理提示显示体验。",
+  "version": "0.2.38",
+  "notes": "修复笔记保存状态偶尔卡在保存中的问题。",
   "downloadUrls": [
     "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe"
   ],
