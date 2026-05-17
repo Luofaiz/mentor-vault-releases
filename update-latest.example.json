@@ -1,6 +1,6 @@
 {
-  "version": "0.2.36",
-  "notes": "新增更新缓存清理功能并修复安装卡住问题。",
+  "version": "0.2.37",
+  "notes": "优化更新与缓存清理提示显示体验。",
   "downloadUrls": [
     "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe"
   ],

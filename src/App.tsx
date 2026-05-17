@@ -106,6 +106,7 @@ export default function App() {
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
   const [isClearingUpdateCache, setIsClearingUpdateCache] = useState(false);
   const isCancelingUpdateDownloadRef = useRef(false);
+  const transientUpdateMessageTimerRef = useRef<number | null>(null);
   const professorDirectory = useProfessorDirectory();
   const professorStats = useMemo(() => {
     const activeProfessors = professorDirectory.professors.filter((professor) => !professor.deletedAt);
@@ -116,11 +117,35 @@ export default function App() {
     };
   }, [professorDirectory.professors]);
 
+  const showUpdateMessage = (message: string | null, options?: { transient?: boolean }) => {
+    if (transientUpdateMessageTimerRef.current !== null) {
+      window.clearTimeout(transientUpdateMessageTimerRef.current);
+      transientUpdateMessageTimerRef.current = null;
+    }
+
+    setUpdateMessage(message);
+
+    if (message && options?.transient) {
+      transientUpdateMessageTimerRef.current = window.setTimeout(() => {
+        setUpdateMessage((current) => (current === message ? null : current));
+        transientUpdateMessageTimerRef.current = null;
+      }, 3000);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (transientUpdateMessageTimerRef.current !== null) {
+        window.clearTimeout(transientUpdateMessageTimerRef.current);
+      }
+    };
+  }, []);
+
   const checkForUpdates = async (manual = true) => {
     const desktopApi = getDesktopApi();
     if (!desktopApi) {
       if (manual) {
-        setUpdateMessage('网页预览模式不能检查桌面版更新。');
+        showUpdateMessage('网页预览模式不能检查桌面版更新。');
       }
       return;
     }
@@ -134,14 +159,14 @@ export default function App() {
 
       if (!result.configured) {
         if (manual) {
-          setUpdateMessage('还没有配置更新地址。配置 UPDATE_MANIFEST_URL 后重新打包即可启用。');
+          showUpdateMessage('还没有配置更新地址。配置 UPDATE_MANIFEST_URL 后重新打包即可启用。');
         }
         return;
       }
 
       if (!result.updateAvailable) {
         if (manual) {
-          setUpdateMessage(`当前已经是最新版：${result.currentVersion}`);
+          showUpdateMessage(`当前已经是最新版：${result.currentVersion}`, { transient: true });
         }
         return;
       }
@@ -159,7 +184,7 @@ export default function App() {
         releaseUrl: result.releaseUrl,
         canInstallDifferential: Boolean(desktopApi.system.installDifferentialUpdate),
       });
-      setUpdateMessage(
+      showUpdateMessage(
         downloadUrls.length > 0
           ? `发现新版本 ${result.latestVersion}，当前版本 ${result.currentVersion}。请选择增量下载、全量下载或手动下载。`
           : `发现新版本 ${result.latestVersion}，当前版本 ${result.currentVersion}。没有找到安装包直链，可以打开发布页面手动下载。`,
@@ -167,11 +192,11 @@ export default function App() {
     } catch (error) {
       setUpdateDownloadProgress(null);
       if (isCancelingUpdateDownloadRef.current) {
-        setUpdateMessage('已取消更新下载。');
+        showUpdateMessage('已取消更新下载。');
         return;
       }
       if (manual) {
-        setUpdateMessage(formatUpdateErrorMessage(error));
+        showUpdateMessage(formatUpdateErrorMessage(error));
       }
     } finally {
       setIsCheckingUpdates(false);
@@ -196,7 +221,7 @@ export default function App() {
 
     const desktopApi = getDesktopApi();
     if (!desktopApi?.system.installDifferentialUpdate) {
-      setUpdateMessage('当前版本暂不支持增量下载，请使用全量下载。');
+      showUpdateMessage('当前版本暂不支持增量下载，请使用全量下载。');
       return;
     }
 
@@ -204,15 +229,15 @@ export default function App() {
     setIsCheckingUpdates(true);
     setUpdateDownloadProgress(null);
     try {
-      setUpdateMessage('正在进行增量下载。下载完成后会安装新版并关闭当前程序。');
+      showUpdateMessage('正在进行增量下载。下载完成后会安装新版并关闭当前程序。');
       await desktopApi.system.installDifferentialUpdate(availableUpdate.latestVersion);
     } catch (error) {
       setUpdateDownloadProgress(null);
       if (isCancelingUpdateDownloadRef.current) {
-        setUpdateMessage('已取消更新下载。');
+        showUpdateMessage('已取消更新下载。');
         return;
       }
-      setUpdateMessage(formatUpdateErrorMessage(error, '增量下载失败'));
+      showUpdateMessage(formatUpdateErrorMessage(error, '增量下载失败'));
     } finally {
       setIsCheckingUpdates(false);
     }
@@ -239,15 +264,15 @@ export default function App() {
     setIsCheckingUpdates(true);
     setUpdateDownloadProgress(null);
     try {
-      setUpdateMessage('正在下载完整新版安装程序。下载完成后会启动安装程序并关闭当前程序。');
+      showUpdateMessage('正在下载完整新版安装程序。下载完成后会启动安装程序并关闭当前程序。');
       await desktopApi.system.installUpdate(availableUpdate.downloadUrls);
     } catch (error) {
       setUpdateDownloadProgress(null);
       if (isCancelingUpdateDownloadRef.current) {
-        setUpdateMessage('已取消更新下载。');
+        showUpdateMessage('已取消更新下载。');
         return;
       }
-      setUpdateMessage(formatUpdateErrorMessage(error, '全量下载失败'));
+      showUpdateMessage(formatUpdateErrorMessage(error, '全量下载失败'));
     } finally {
       setIsCheckingUpdates(false);
     }
@@ -299,7 +324,7 @@ export default function App() {
     const desktopApi = getDesktopApi();
     isCancelingUpdateDownloadRef.current = true;
     setUpdateDownloadProgress(null);
-    setUpdateMessage('已取消更新下载。');
+    showUpdateMessage('已取消更新下载。');
     setIsCheckingUpdates(false);
     void desktopApi?.system.cancelUpdateDownload?.();
   };
@@ -307,17 +332,19 @@ export default function App() {
   const clearUpdateCache = async () => {
     const desktopApi = getDesktopApi();
     if (!desktopApi?.system.clearUpdateCache) {
-      setUpdateMessage('当前环境不支持清理更新缓存。');
+      showUpdateMessage('当前环境不支持清理更新缓存。');
       return;
     }
 
     setIsClearingUpdateCache(true);
     try {
       const result = await desktopApi.system.clearUpdateCache();
-      setUpdateMessage(`已清理更新缓存，释放 ${formatStorageSize(result.freedBytes)}。`);
+      showUpdateMessage(`已清理更新缓存，释放 ${formatStorageSize(result.freedBytes)}。`, {
+        transient: result.freedBytes <= 0,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error ?? '未知错误');
-      setUpdateMessage(`清理更新缓存失败：${message.replace(/^Error invoking remote method 'system:clear-update-cache':\s*/i, '')}`);
+      showUpdateMessage(`清理更新缓存失败：${message.replace(/^Error invoking remote method 'system:clear-update-cache':\s*/i, '')}`);
     } finally {
       setIsClearingUpdateCache(false);
     }
