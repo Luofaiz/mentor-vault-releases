@@ -271,7 +271,7 @@ export default function App() {
     setIsCheckingUpdates(true);
     setUpdateDownloadProgress(null);
     try {
-      showUpdateMessage('正在下载完整新版安装程序。下载完成后会启动安装程序并关闭当前程序。');
+      showUpdateMessage('\u6b63\u5728\u4e0b\u8f7d\u5b8c\u6574\u65b0\u7248\u5b89\u88c5\u7a0b\u5e8f\u3002\u4e0b\u8f7d\u5b8c\u6210\u540e\u4f1a\u6253\u5f00\u5b89\u88c5\u7a0b\u5e8f\uff0c\u786e\u8ba4\u542f\u52a8\u6210\u529f\u540e\u5173\u95ed\u5f53\u524d\u7a0b\u5e8f\u3002');
       await desktopApi.system.installUpdate({
         downloadUrls: availableUpdate.downloadUrls,
         downloadSha256ByUrl: availableUpdate.downloadSha256ByUrl,
