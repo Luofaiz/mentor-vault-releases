@@ -1,10 +1,7 @@
 {
-  "version": "0.2.42",
-  "notes": "增加全量更新安装包校验。",
-  "downloadUrls": [
-    "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe"
-  ],
+  "version": "0.2.43",
+  "notes": "完善设置中心，支持数据目录、备份恢复和更新管理。",
   "downloadUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe",
-  "downloadSha256": "c83899c1753594414bfab27f2f1c9091ea373522ec09c67191a4ac0f17116542",
+  "downloadSha256": "87be5d74f8dc210e73875253b9901ed64226726a980d10cd6b112f78ad4de991",
   "releaseUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest"
 }
