@@ -1,7 +1,7 @@
 {
-  "version": "0.2.43",
-  "notes": "完善设置中心，支持数据目录、备份恢复和更新管理。",
+  "version": "0.2.44",
+  "notes": "优化全量更新安装器启动方式。",
   "downloadUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe",
-  "downloadSha256": "87be5d74f8dc210e73875253b9901ed64226726a980d10cd6b112f78ad4de991",
+  "downloadSha256": "c4ccffd862be10052b819a78098247e53a9a39ce706ff534244047f49d05cfa6",
   "releaseUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest"
 }
