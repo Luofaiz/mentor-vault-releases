@@ -6,10 +6,11 @@ import { createTimelineEvent } from './lib/timeline';
 import { DocumentNotesPage } from './pages/DocumentNotesPage';
 import { ProfessorDirectoryPage } from './pages/ProfessorDirectoryPage';
 import { SchoolDirectoryPage } from './pages/SchoolDirectoryPage';
+import { SettingsPage } from './pages/SettingsPage';
 import type { ProfessorDraft } from './types/professor';
 import type { TimelineEventDraft } from './types/timeline';
 
-type View = 'contacts' | 'schools' | 'notes' | 'trash';
+type View = 'contacts' | 'schools' | 'notes' | 'trash' | 'settings';
 
 interface AvailableUpdate {
   currentVersion: string;
@@ -429,24 +430,27 @@ export default function App() {
         contactedProfessorCount={professorStats.contactedProfessorCount}
         activeProfessorCount={professorStats.activeProfessorCount}
         onChangeView={setView}
-        updateMessage={updateMessage}
-        updateDownloadProgress={updateDownloadProgress}
-        isCheckingUpdates={isCheckingUpdates}
-        isClearingUpdateCache={isClearingUpdateCache}
-        onCheckUpdates={() => void checkForUpdates(true)}
-        onClearUpdateCache={() => void clearUpdateCache()}
-        availableUpdate={availableUpdate}
-        onDownloadDifferentialUpdate={() => void downloadDifferentialUpdate()}
-        onDownloadFullUpdate={() => void downloadFullUpdate()}
-        onManualDownloadUpdate={() => void manualDownloadUpdate()}
-        onPauseUpdateDownload={pauseUpdateDownload}
-        onResumeUpdateDownload={resumeUpdateDownload}
-        onCancelUpdateDownload={cancelUpdateDownload}
-        onOpenExternalUrl={openExternalUrl}
       />
 
       <main className="min-w-0 flex-1 flex flex-col overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(177,95,47,0.08),_transparent_28%),linear-gradient(180deg,#fcfbf8_0%,#f7f4ef_100%)]">
-        {view === 'schools' ? (
+        {view === 'settings' ? (
+          <SettingsPage
+            updateMessage={updateMessage}
+            updateDownloadProgress={updateDownloadProgress}
+            isCheckingUpdates={isCheckingUpdates}
+            isClearingUpdateCache={isClearingUpdateCache}
+            availableUpdate={availableUpdate}
+            onCheckUpdates={() => void checkForUpdates(true)}
+            onClearUpdateCache={() => void clearUpdateCache()}
+            onDownloadDifferentialUpdate={() => void downloadDifferentialUpdate()}
+            onDownloadFullUpdate={() => void downloadFullUpdate()}
+            onManualDownloadUpdate={() => void manualDownloadUpdate()}
+            onPauseUpdateDownload={pauseUpdateDownload}
+            onResumeUpdateDownload={resumeUpdateDownload}
+            onCancelUpdateDownload={cancelUpdateDownload}
+            onOpenExternalUrl={openExternalUrl}
+          />
+        ) : view === 'schools' ? (
           <SchoolDirectoryPage
             professors={professorDirectory.professors}
             isLoading={professorDirectory.isLoading}
