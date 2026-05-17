@@ -448,18 +448,7 @@ export default function App() {
 
       <main className="min-w-0 flex-1 flex flex-col overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(177,95,47,0.08),_transparent_28%),linear-gradient(180deg,#fcfbf8_0%,#f7f4ef_100%)]">
         {view === 'settings' ? (
-          <SettingsPage
-            updateMessage={updateMessage}
-            updateDownloadProgress={updateDownloadProgress}
-            isCheckingUpdates={isCheckingUpdates}
-            availableUpdate={availableUpdate}
-            onDownloadDifferentialUpdate={() => void downloadDifferentialUpdate()}
-            onDownloadFullUpdate={() => void downloadFullUpdate()}
-            onManualDownloadUpdate={() => void manualDownloadUpdate()}
-            onPauseUpdateDownload={pauseUpdateDownload}
-            onResumeUpdateDownload={resumeUpdateDownload}
-            onCancelUpdateDownload={cancelUpdateDownload}
-          />
+          <SettingsPage />
         ) : view === 'schools' ? (
           <SchoolDirectoryPage
             professors={professorDirectory.professors}

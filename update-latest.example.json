@@ -1,7 +1,7 @@
 {
-  "version": "0.2.48",
-  "notes": "调整更新操作回到左侧栏。",
+  "version": "0.2.49",
+  "notes": "精简设置页更新信息展示。",
   "downloadUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe",
-  "downloadSha256": "3c28beb1e94d31a676478f2462fface804346e814bcc8a34163420caccdc379a",
+  "downloadSha256": "ade06dba121428b28c876bcaf4a86e2f9b75bcbeaccedd37e79ddf7a7e19e8d5",
   "releaseUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest"
 }
