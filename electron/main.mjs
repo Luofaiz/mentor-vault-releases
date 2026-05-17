@@ -1,7 +1,7 @@
-import { app, BrowserWindow, ipcMain, net, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, net, session, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createWriteStream } from 'node:fs';
+import { createWriteStream, readFileSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { Readable, Transform } from 'node:stream';
@@ -16,6 +16,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const STORE_VERSION = 9;
 const DESKTOP_DATA_DIRNAME = 'Mentor Vault';
+const DATA_LOCATION_FILE_NAME = 'data-location.json';
+const STORE_FILE_NAME = 'vibe-data.json';
+const SECRET_KEY_FILE_NAME = 'mail-secret.key';
 const LEGACY_DATA_DIRNAMES = ['Professor Tracker', 'Vibe Sender', 'vibe-sender'];
 const UPDATE_MANIFEST_ENV_KEYS = ['PROFESSOR_TRACKER_UPDATE_URL', 'UPDATE_MANIFEST_URL'];
 const DEFAULT_UPDATE_MANIFEST_URL =
@@ -37,6 +40,7 @@ const ELECTRON_UPDATER_SESSION_NAME = 'electron-updater';
 let currentUpdateDownloadTask = null;
 let currentDifferentialUpdateCancellationToken = null;
 let updateProxyReadyPromise = null;
+let configuredDataDir = null;
 
 const DEFAULT_PROFESSORS = [];
 
@@ -63,14 +67,48 @@ const AI_DEFAULTS = {
   },
 };
 
-function getPreferredDataDir() {
+function getDefaultDataDir() {
   return path.join(app.getPath('appData'), DESKTOP_DATA_DIRNAME);
+}
+
+function getDataLocationConfigPath() {
+  return path.join(getDefaultDataDir(), DATA_LOCATION_FILE_NAME);
+}
+
+function normalizeDataDirPath(input) {
+  const raw = String(input ?? '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  return path.resolve(raw);
+}
+
+function readConfiguredDataDir() {
+  if (configuredDataDir) {
+    return configuredDataDir;
+  }
+
+  try {
+    const config = JSON.parse(readFileSync(getDataLocationConfigPath(), 'utf8'));
+    const dataDir = normalizeDataDirPath(config?.dataDir);
+    configuredDataDir = dataDir || null;
+  } catch {
+    configuredDataDir = null;
+  }
+
+  return configuredDataDir;
+}
+
+function getPreferredDataDir() {
+  return readConfiguredDataDir() ?? getDefaultDataDir();
 }
 
 function getLegacyDataDirs() {
   const preferred = getPreferredDataDir();
   return Array.from(
     new Set([
+      getDefaultDataDir(),
       app.getPath('userData'),
       ...LEGACY_DATA_DIRNAMES.map((directoryName) => path.join(app.getPath('appData'), directoryName)),
     ]),
@@ -896,6 +934,197 @@ async function writePreferredDataFile(fileName, text) {
   const filePath = path.join(preferredDir, fileName);
   await writeFile(filePath, text, 'utf8');
   return filePath;
+}
+
+function getManagedDataFileNames() {
+  return [STORE_FILE_NAME, SECRET_KEY_FILE_NAME];
+}
+
+function getBackupFileName() {
+  const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+$/, '').replace('T', '-');
+  return `mentor-vault-backup-${timestamp}.json`;
+}
+
+function createBackupPayload(store) {
+  return {
+    format: 'mentor-vault-backup',
+    backupVersion: 1,
+    appVersion: app.getVersion(),
+    createdAt: Date.now(),
+    store: normalizeStore(store),
+  };
+}
+
+function looksLikeStorePayload(value) {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  return [
+    'professors',
+    'timelineEvents',
+    'templates',
+    'drafts',
+    'notes',
+    'mailAccounts',
+    'aiConfigs',
+    'listOrderPreferences',
+  ].some((key) => Object.prototype.hasOwnProperty.call(value, key));
+}
+
+function extractStoreFromBackupPayload(value) {
+  if (value?.format === 'mentor-vault-backup' && looksLikeStorePayload(value.store)) {
+    return value.store;
+  }
+
+  if (looksLikeStorePayload(value)) {
+    return value;
+  }
+
+  throw new Error('选择的文件不是 Mentor Vault 数据备份。');
+}
+
+async function getDataFileInfo(fileName) {
+  const filePath = path.join(getPreferredDataDir(), fileName);
+  try {
+    const metadata = await stat(filePath);
+    return {
+      path: filePath,
+      exists: metadata.isFile(),
+      size: metadata.size,
+      updatedAt: metadata.mtimeMs,
+    };
+  } catch {
+    return {
+      path: filePath,
+      exists: false,
+      size: 0,
+      updatedAt: null,
+    };
+  }
+}
+
+async function getDataDirectoryInfo() {
+  const dataDir = getPreferredDataDir();
+  const files = await Promise.all(getManagedDataFileNames().map((fileName) => getDataFileInfo(fileName)));
+  const storeFile = files.find((file) => path.basename(file.path) === STORE_FILE_NAME);
+
+  return {
+    dataDir,
+    defaultDataDir: getDefaultDataDir(),
+    isCustomDataDir: path.resolve(dataDir) !== path.resolve(getDefaultDataDir()),
+    storePath: storeFile?.path ?? path.join(dataDir, STORE_FILE_NAME),
+    files,
+  };
+}
+
+async function openDataDirectory() {
+  const dataDir = getPreferredDataDir();
+  await mkdir(dataDir, { recursive: true });
+  await shell.openPath(dataDir);
+  return { ok: true };
+}
+
+async function copyDataFilesToDirectory(targetDir) {
+  await mkdir(targetDir, { recursive: true });
+  const copiedFiles = [];
+
+  for (const fileName of getManagedDataFileNames()) {
+    const existing = await readExistingDataFile(fileName);
+    if (!existing) {
+      continue;
+    }
+
+    const targetPath = path.join(targetDir, fileName);
+    await writeFile(targetPath, existing.text, 'utf8');
+    copiedFiles.push({ fileName, from: existing.path, to: targetPath });
+  }
+
+  if (!copiedFiles.some((file) => file.fileName === STORE_FILE_NAME)) {
+    const targetPath = path.join(targetDir, STORE_FILE_NAME);
+    await writeFile(targetPath, JSON.stringify(normalizeStore(null), null, 2), 'utf8');
+    copiedFiles.push({ fileName: STORE_FILE_NAME, from: null, to: targetPath });
+  }
+
+  return copiedFiles;
+}
+
+async function saveDataLocation(targetDir) {
+  configuredDataDir = normalizeDataDirPath(targetDir);
+  await mkdir(getDefaultDataDir(), { recursive: true });
+  await writeFile(
+    getDataLocationConfigPath(),
+    JSON.stringify({ dataDir: configuredDataDir, updatedAt: Date.now() }, null, 2),
+    'utf8',
+  );
+}
+
+async function chooseDataDirectory() {
+  const result = await dialog.showOpenDialog({
+    title: '选择数据存放目录',
+    defaultPath: getPreferredDataDir(),
+    properties: ['openDirectory', 'createDirectory'],
+  });
+
+  if (result.canceled || !result.filePaths[0]) {
+    return { canceled: true };
+  }
+
+  const targetDir = normalizeDataDirPath(result.filePaths[0]);
+  const copiedFiles = await copyDataFilesToDirectory(targetDir);
+  await saveDataLocation(targetDir);
+
+  return {
+    canceled: false,
+    dataDir: targetDir,
+    copiedFiles,
+    restartRequired: true,
+  };
+}
+
+async function createDataBackup() {
+  const result = await dialog.showSaveDialog({
+    title: '备份 Mentor Vault 数据',
+    defaultPath: path.join(app.getPath('documents'), getBackupFileName()),
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+
+  if (result.canceled || !result.filePath) {
+    return { canceled: true };
+  }
+
+  const store = await ensureStore();
+  await writeFile(result.filePath, JSON.stringify(createBackupPayload(store), null, 2), 'utf8');
+  return { canceled: false, filePath: result.filePath };
+}
+
+async function restoreDataBackup() {
+  const result = await dialog.showOpenDialog({
+    title: '恢复 Mentor Vault 数据',
+    properties: ['openFile'],
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+
+  if (result.canceled || !result.filePaths[0]) {
+    return { canceled: true };
+  }
+
+  const backupPath = result.filePaths[0];
+  const backupText = await readFile(backupPath, 'utf8');
+  const backupStore = normalizeStore(extractStoreFromBackupPayload(parseJsonSafely(backupText)));
+  const currentText = JSON.stringify(await ensureStore(), null, 2);
+  const currentBackupPath = path.join(
+    getPreferredDataDir(),
+    `vibe-data.before-restore-${new Date().toISOString().replace(/[-:]/g, '').replace(/\..+$/, '').replace('T', '-')}.json`,
+  );
+  await mkdir(getPreferredDataDir(), { recursive: true });
+  await writeFile(currentBackupPath, currentText, 'utf8');
+  await saveStore(backupStore);
+  return {
+    canceled: false,
+    restoredFrom: backupPath,
+    previousBackupPath: currentBackupPath,
+  };
 }
 
 function normalizeDateValue(value) {
@@ -1737,6 +1966,16 @@ ipcMain.handle('system:resume-update-download', async () => resumeCurrentUpdateD
 ipcMain.handle('system:cancel-update-download', async () => cancelCurrentUpdateDownload());
 
 ipcMain.handle('system:clear-update-cache', async () => clearUpdateCache());
+
+ipcMain.handle('system:get-data-directory-info', async () => getDataDirectoryInfo());
+
+ipcMain.handle('system:open-data-directory', async () => openDataDirectory());
+
+ipcMain.handle('system:choose-data-directory', async () => chooseDataDirectory());
+
+ipcMain.handle('system:create-data-backup', async () => createDataBackup());
+
+ipcMain.handle('system:restore-data-backup', async () => restoreDataBackup());
 
 ipcMain.handle('professors:list', async (_event, filters) => {
   const store = await ensureStore();
