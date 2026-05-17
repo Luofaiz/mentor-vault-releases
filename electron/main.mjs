@@ -831,28 +831,11 @@ async function downloadUpdateInstaller(downloadUrl, expectedSha256, webContents)
   }
 }
 
-function escapePowerShellSingleQuotedString(value) {
-  return String(value).replace(/'/g, "''");
-}
-
-function startUpdateInstallerAfterQuit(installerPath) {
-  const escapedInstallerPath = escapePowerShellSingleQuotedString(installerPath);
-  const command = [
-    '$ErrorActionPreference = "Stop"',
-    `Wait-Process -Id ${process.pid} -ErrorAction SilentlyContinue`,
-    'Start-Sleep -Milliseconds 500',
-    `Start-Process -FilePath '${escapedInstallerPath}' -ArgumentList @('--updated','/S','--force-run')`,
-  ].join('; ');
-  const child = spawn(
-    'powershell.exe',
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command', command],
-    {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true,
-    },
-  );
-  child.unref();
+async function startVisibleUpdateInstaller(installerPath) {
+  const result = await shell.openPath(installerPath);
+  if (result) {
+    throw new Error(`启动安装程序失败：${result}`);
+  }
 }
 
 async function installUpdate(updateInput, webContents) {
@@ -893,11 +876,11 @@ async function installUpdate(updateInput, webContents) {
     throw lastError ?? new Error('更新安装包下载失败。');
   }
 
-  startUpdateInstallerAfterQuit(installerPath);
+  await startVisibleUpdateInstaller(installerPath);
 
   setTimeout(() => {
     app.quit();
-  }, 300);
+  }, 1200);
   return { ok: true };
 }
 
