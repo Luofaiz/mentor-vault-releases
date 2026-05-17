@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, FolderOpen, HardDrive, Pause, Play, RefreshCw, RotateCcw, Upload, X } from 'lucide-react';
+import { Download, FolderOpen, HardDrive, Pause, Play, Upload, X } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { getDesktopApi, isDesktopRuntime } from '../lib/desktop';
 import type { DataDirectoryInfo, UpdateDownloadProgress } from '../lib/desktop';
@@ -15,10 +15,7 @@ interface SettingsPageProps {
   updateMessage: string | null;
   updateDownloadProgress: UpdateDownloadProgress | null;
   isCheckingUpdates: boolean;
-  isClearingUpdateCache: boolean;
   availableUpdate: AvailableUpdateSummary | null;
-  onCheckUpdates: () => void;
-  onClearUpdateCache: () => void;
   onDownloadDifferentialUpdate: () => void;
   onDownloadFullUpdate: () => void;
   onManualDownloadUpdate: () => void;
@@ -31,10 +28,7 @@ export function SettingsPage({
   updateMessage,
   updateDownloadProgress,
   isCheckingUpdates,
-  isClearingUpdateCache,
   availableUpdate,
-  onCheckUpdates,
-  onClearUpdateCache,
   onDownloadDifferentialUpdate,
   onDownloadFullUpdate,
   onManualDownloadUpdate,
@@ -266,17 +260,6 @@ export function SettingsPage({
             <div className="rounded-[1.75rem] border border-stone-200 bg-stone-50 px-5 py-5">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-400">更新</p>
               <p className="mt-2 text-sm leading-6 text-stone-500">检查新版本、清理下载缓存，也可以手动打开发布页。</p>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                <button type="button" onClick={onCheckUpdates} disabled={!desktopReady || isCheckingUpdates} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60">
-                  <RefreshCw className={`h-4 w-4 ${isCheckingUpdates ? 'animate-spin' : ''}`} />
-                  <span>{isCheckingUpdates ? t('checkingUpdates') : t('checkUpdates')}</span>
-                </button>
-                <button type="button" onClick={onClearUpdateCache} disabled={!desktopReady || isClearingUpdateCache || Boolean(updateDownloadProgress)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60">
-                  <RotateCcw className={`h-4 w-4 ${isClearingUpdateCache ? 'animate-spin' : ''}`} />
-                  <span>{isClearingUpdateCache ? '清理中' : '清理更新缓存'}</span>
-                </button>
-              </div>
-
               {updateMessage && (
                 <div className="mt-4 rounded-2xl bg-white px-4 py-3 text-sm leading-6 text-stone-600">
                   <p>{updateMessage}</p>

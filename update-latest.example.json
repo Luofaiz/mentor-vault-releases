@@ -1,7 +1,7 @@
 {
-  "version": "0.2.47",
-  "notes": "修复侧栏 CS 保研 DDL 图标显示。",
+  "version": "0.2.48",
+  "notes": "调整更新操作回到左侧栏。",
   "downloadUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe",
-  "downloadSha256": "a1c6e96725e9a38efa5455c7c579db64b16d169eb74fb7de0d6eead229d7aa68",
+  "downloadSha256": "3c28beb1e94d31a676478f2462fface804346e814bcc8a34163420caccdc379a",
   "releaseUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest"
 }

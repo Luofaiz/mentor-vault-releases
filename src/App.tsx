@@ -429,7 +429,20 @@ export default function App() {
         view={view}
         contactedProfessorCount={professorStats.contactedProfessorCount}
         activeProfessorCount={professorStats.activeProfessorCount}
+        updateMessage={updateMessage}
+        updateDownloadProgress={updateDownloadProgress}
+        isCheckingUpdates={isCheckingUpdates}
+        isClearingUpdateCache={isClearingUpdateCache}
+        availableUpdate={availableUpdate}
         onOpenExternalUrl={openExternalUrl}
+        onCheckUpdates={() => void checkForUpdates(true)}
+        onClearUpdateCache={() => void clearUpdateCache()}
+        onDownloadDifferentialUpdate={() => void downloadDifferentialUpdate()}
+        onDownloadFullUpdate={() => void downloadFullUpdate()}
+        onManualDownloadUpdate={() => void manualDownloadUpdate()}
+        onPauseUpdateDownload={pauseUpdateDownload}
+        onResumeUpdateDownload={resumeUpdateDownload}
+        onCancelUpdateDownload={cancelUpdateDownload}
         onChangeView={setView}
       />
 
@@ -439,10 +452,7 @@ export default function App() {
             updateMessage={updateMessage}
             updateDownloadProgress={updateDownloadProgress}
             isCheckingUpdates={isCheckingUpdates}
-            isClearingUpdateCache={isClearingUpdateCache}
             availableUpdate={availableUpdate}
-            onCheckUpdates={() => void checkForUpdates(true)}
-            onClearUpdateCache={() => void clearUpdateCache()}
             onDownloadDifferentialUpdate={() => void downloadDifferentialUpdate()}
             onDownloadFullUpdate={() => void downloadFullUpdate()}
             onManualDownloadUpdate={() => void manualDownloadUpdate()}
