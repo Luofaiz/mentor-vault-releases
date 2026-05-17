@@ -81,12 +81,30 @@ function formatUpdateNotes(notes?: string) {
     .find(Boolean);
 }
 
+function formatStorageSize(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B';
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  const fractionDigits = value >= 10 || unitIndex === 0 ? 0 : 1;
+  return `${value.toFixed(fractionDigits)} ${units[unitIndex]}`;
+}
+
 export default function App() {
   const [view, setView] = useState<View>('contacts');
   const [updateMessage, setUpdateMessage] = useState<string | null>(null);
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null);
   const [updateDownloadProgress, setUpdateDownloadProgress] = useState<UpdateDownloadProgress | null>(null);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+  const [isClearingUpdateCache, setIsClearingUpdateCache] = useState(false);
   const isCancelingUpdateDownloadRef = useRef(false);
   const professorDirectory = useProfessorDirectory();
   const professorStats = useMemo(() => {
@@ -286,6 +304,25 @@ export default function App() {
     void desktopApi?.system.cancelUpdateDownload?.();
   };
 
+  const clearUpdateCache = async () => {
+    const desktopApi = getDesktopApi();
+    if (!desktopApi?.system.clearUpdateCache) {
+      setUpdateMessage('当前环境不支持清理更新缓存。');
+      return;
+    }
+
+    setIsClearingUpdateCache(true);
+    try {
+      const result = await desktopApi.system.clearUpdateCache();
+      setUpdateMessage(`已清理更新缓存，释放 ${formatStorageSize(result.freedBytes)}。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error ?? '未知错误');
+      setUpdateMessage(`清理更新缓存失败：${message.replace(/^Error invoking remote method 'system:clear-update-cache':\s*/i, '')}`);
+    } finally {
+      setIsClearingUpdateCache(false);
+    }
+  };
+
   const openExternalUrl = (url: string) => {
     const desktopApi = getDesktopApi();
     if (desktopApi) {
@@ -359,7 +396,9 @@ export default function App() {
         updateMessage={updateMessage}
         updateDownloadProgress={updateDownloadProgress}
         isCheckingUpdates={isCheckingUpdates}
+        isClearingUpdateCache={isClearingUpdateCache}
         onCheckUpdates={() => void checkForUpdates(true)}
+        onClearUpdateCache={() => void clearUpdateCache()}
         availableUpdate={availableUpdate}
         onDownloadDifferentialUpdate={() => void downloadDifferentialUpdate()}
         onDownloadFullUpdate={() => void downloadFullUpdate()}

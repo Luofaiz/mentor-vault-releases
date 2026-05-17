@@ -18,7 +18,7 @@
     ${EndIf}
   FunctionEnd
 
-  Function mentorVaultInstallModeLeave
+  !macro customInit
     ReadRegStr $0 HKCU "Software\${APP_GUID}" InstallLocation
     ReadRegStr $1 HKLM "Software\${APP_GUID}" InstallLocation
 
@@ -26,16 +26,7 @@
     ${AndIf} $1 == ""
       StrCpy $INSTDIR "D:\${APP_FILENAME}"
     ${EndIf}
-  FunctionEnd
 
-  Function mentorVaultNormalizePage
     Call normalizeMentorVaultInstallDir
-    Abort
-  FunctionEnd
-
-  !define MUI_PAGE_CUSTOMFUNCTION_LEAVE mentorVaultInstallModeLeave
-
-  !macro customPageAfterChangeDir
-    Page custom mentorVaultNormalizePage
   !macroend
 !endif

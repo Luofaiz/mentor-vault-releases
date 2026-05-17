@@ -40,6 +40,7 @@ export interface VibeDesktopApi {
     pauseUpdateDownload?: () => Promise<{ ok: boolean }>;
     resumeUpdateDownload?: () => Promise<{ ok: boolean }>;
     cancelUpdateDownload?: () => Promise<{ ok: boolean }>;
+    clearUpdateCache?: () => Promise<{ ok: true; freedBytes: number; removedPaths: string[] }>;
     onUpdateDownloadProgress?: (callback: (progress: UpdateDownloadProgress) => void) => () => void;
   };
   professors: {

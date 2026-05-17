@@ -1,6 +1,6 @@
 {
-  "version": "0.2.33",
-  "notes": "优化笔记图片显示体验。",
+  "version": "0.2.35",
+  "notes": "新增更新缓存清理功能并修复安装卡住问题。",
   "downloadUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe",
   "releaseUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest"
 }

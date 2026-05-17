@@ -6,6 +6,7 @@ import {
   Pause,
   Play,
   RefreshCw,
+  RotateCcw,
   Trash2,
   Users,
   X,
@@ -39,7 +40,9 @@ interface AppSidebarProps {
   updateMessage: string | null;
   updateDownloadProgress: UpdateDownloadProgress | null;
   isCheckingUpdates: boolean;
+  isClearingUpdateCache: boolean;
   onCheckUpdates: () => void;
+  onClearUpdateCache: () => void;
   availableUpdate: AvailableUpdateSummary | null;
   onDownloadDifferentialUpdate: () => void;
   onDownloadFullUpdate: () => void;
@@ -58,7 +61,9 @@ export function AppSidebar({
   updateMessage,
   updateDownloadProgress,
   isCheckingUpdates,
+  isClearingUpdateCache,
   onCheckUpdates,
+  onClearUpdateCache,
   availableUpdate,
   onDownloadDifferentialUpdate,
   onDownloadFullUpdate,
@@ -161,6 +166,15 @@ export function AppSidebar({
         >
           <RefreshCw className={`h-4 w-4 ${isCheckingUpdates ? 'animate-spin' : ''}`} />
           <span>{isCheckingUpdates ? t('checkingUpdates') : t('checkUpdates')}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onClearUpdateCache}
+          disabled={isClearingUpdateCache || Boolean(updateDownloadProgress)}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <RotateCcw className={`h-4 w-4 ${isClearingUpdateCache ? 'animate-spin' : ''}`} />
+          <span>{isClearingUpdateCache ? '清理中' : '清理缓存'}</span>
         </button>
         {updateMessage && (
           <div className="rounded-2xl bg-stone-50 px-4 py-3 text-xs leading-5 text-stone-500">

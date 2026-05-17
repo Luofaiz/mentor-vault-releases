@@ -2,7 +2,8 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createWriteStream } from 'node:fs';
-import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, stat, unlink, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import crypto from 'node:crypto';
@@ -28,6 +29,7 @@ const DEFAULT_UPDATE_MANIFEST_FALLBACK_URLS = [
 const UPDATE_CHECK_TIMEOUT_MS = 30000;
 const UPDATE_DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 const UPDATE_INSTALLER_FILE_NAME = 'MentorVaultSetup.exe';
+const UPDATE_CACHE_DIRNAMES = ['vibe-sender-updater', 'mentor-vault-updater'];
 const UPDATE_DOWNLOAD_PROGRESS_CHANNEL = 'system:update-download-progress';
 const AUTO_UPDATE_LATEST_BASE_URL = 'https://github.com/Luofaiz/mentor-vault/releases/latest/download/';
 const AUTO_UPDATE_VERSION_BASE_URL_PREFIX = 'https://github.com/Luofaiz/mentor-vault/releases/download/';
@@ -470,6 +472,78 @@ async function removeFileIfExists(filePath) {
   }
 }
 
+async function getPathSize(targetPath) {
+  try {
+    const metadata = await stat(targetPath);
+    if (metadata.isFile()) {
+      return metadata.size;
+    }
+    if (!metadata.isDirectory()) {
+      return 0;
+    }
+
+    const entries = await readdir(targetPath, { withFileTypes: true });
+    let totalBytes = 0;
+    for (const entry of entries) {
+      totalBytes += await getPathSize(path.join(targetPath, entry.name));
+    }
+    return totalBytes;
+  } catch {
+    return 0;
+  }
+}
+
+function getUpdateCachePaths() {
+  const localAppData = process.env.LOCALAPPDATA ?? path.join(app.getPath('appData'), '..', 'Local');
+  return [
+    ...UPDATE_CACHE_DIRNAMES.map((directoryName) => path.join(localAppData, directoryName)),
+    path.join(app.getPath('temp'), 'MentorVaultSetup.exe'),
+  ];
+}
+
+async function clearUpdateCache() {
+  if (currentUpdateDownloadTask || currentDifferentialUpdateCancellationToken) {
+    throw new Error('更新正在下载中，请先取消或等待下载结束后再清理缓存。');
+  }
+
+  const cachePaths = Array.from(new Set(getUpdateCachePaths().map((cachePath) => path.resolve(cachePath))));
+  let freedBytes = 0;
+  const removedPaths = [];
+
+  for (const cachePath of cachePaths) {
+    const size = await getPathSize(cachePath);
+    if (size <= 0) {
+      continue;
+    }
+
+    await rm(cachePath, { recursive: true, force: true });
+    freedBytes += size;
+    removedPaths.push(cachePath);
+  }
+
+  try {
+    const tempEntries = await readdir(app.getPath('temp'), { withFileTypes: true });
+    for (const entry of tempEntries) {
+      if (!entry.isFile() || !/^MentorVaultSetup-\d+\.exe$/i.test(entry.name)) {
+        continue;
+      }
+
+      const tempInstallerPath = path.join(app.getPath('temp'), entry.name);
+      const size = await getPathSize(tempInstallerPath);
+      await rm(tempInstallerPath, { force: true });
+      freedBytes += size;
+      removedPaths.push(tempInstallerPath);
+    }
+  } catch {
+  }
+
+  return {
+    ok: true,
+    freedBytes,
+    removedPaths,
+  };
+}
+
 function createUpdateDownloadProgressStream(totalBytes, notifyProgress, task) {
   let transferredBytes = 0;
   let lastSentAt = 0;
@@ -653,6 +727,30 @@ async function downloadUpdateInstaller(downloadUrl, webContents) {
   }
 }
 
+function escapePowerShellSingleQuotedString(value) {
+  return String(value).replace(/'/g, "''");
+}
+
+function startUpdateInstallerAfterQuit(installerPath) {
+  const escapedInstallerPath = escapePowerShellSingleQuotedString(installerPath);
+  const command = [
+    '$ErrorActionPreference = "Stop"',
+    `Wait-Process -Id ${process.pid} -ErrorAction SilentlyContinue`,
+    'Start-Sleep -Milliseconds 500',
+    `Start-Process -FilePath '${escapedInstallerPath}' -ArgumentList @('--updated','/S','--force-run')`,
+  ].join('; ');
+  const child = spawn(
+    'powershell.exe',
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command', command],
+    {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    },
+  );
+  child.unref();
+}
+
 async function installUpdate(downloadUrl, webContents) {
   if (process.platform !== 'win32') {
     throw new Error('当前自动安装更新只支持 Windows。');
@@ -682,14 +780,11 @@ async function installUpdate(downloadUrl, webContents) {
     throw lastError ?? new Error('更新安装包下载失败。');
   }
 
-  const openError = await shell.openPath(installerPath);
-  if (openError) {
-    throw new Error(`启动安装程序失败：${openError}`);
-  }
+  startUpdateInstallerAfterQuit(installerPath);
 
   setTimeout(() => {
     app.quit();
-  }, 1500);
+  }, 300);
   return { ok: true };
 }
 
@@ -1565,6 +1660,8 @@ ipcMain.handle('system:pause-update-download', async () => pauseCurrentUpdateDow
 ipcMain.handle('system:resume-update-download', async () => resumeCurrentUpdateDownload());
 
 ipcMain.handle('system:cancel-update-download', async () => cancelCurrentUpdateDownload());
+
+ipcMain.handle('system:clear-update-cache', async () => clearUpdateCache());
 
 ipcMain.handle('professors:list', async (_event, filters) => {
   const store = await ensureStore();

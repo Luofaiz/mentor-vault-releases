@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('vibe', {
     pauseUpdateDownload: () => ipcRenderer.invoke('system:pause-update-download'),
     resumeUpdateDownload: () => ipcRenderer.invoke('system:resume-update-download'),
     cancelUpdateDownload: () => ipcRenderer.invoke('system:cancel-update-download'),
+    clearUpdateCache: () => ipcRenderer.invoke('system:clear-update-cache'),
     onUpdateDownloadProgress: (callback) => {
       const listener = (_event, progress) => callback(progress);
       ipcRenderer.on('system:update-download-progress', listener);
