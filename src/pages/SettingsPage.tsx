@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Bot, LockKeyhole, Mail, Save } from 'lucide-react';
+import { Bot, Download, ExternalLink, FolderOpen, Github, HardDrive, LockKeyhole, Mail, Pause, Play, RefreshCw, RotateCcw, Save, Upload, X } from 'lucide-react';
 import { useAiSettings } from '../hooks/useAiSettings';
 import { useMailAccounts } from '../hooks/useMailAccounts';
 import { useUserProfile } from '../hooks/useUserProfile';
@@ -7,12 +7,56 @@ import { DEFAULT_AI_CONFIG, getDefaultAISettingsInput, testAISettings } from '..
 import { useSendLogs } from '../hooks/useSendLogs';
 import { useI18n } from '../lib/i18n';
 import { getDefault163AccountInput } from '../lib/mail';
-import { isDesktopRuntime } from '../lib/desktop';
+import { getDesktopApi, isDesktopRuntime } from '../lib/desktop';
+import type { DataDirectoryInfo, UpdateDownloadProgress } from '../lib/desktop';
 import type { AIProvider, AISettingsInput } from '../types/ai';
 import type { MailAccountInput } from '../types/mail';
 import type { UserProfileSettingsInput } from '../types/profile';
 
-export function SettingsPage() {
+
+interface AvailableUpdateSummary {
+  notes?: string;
+  downloadUrls: string[];
+  releaseUrl?: string;
+  canInstallDifferential: boolean;
+}
+
+interface SettingsPageProps {
+  updateMessage: string | null;
+  updateDownloadProgress: UpdateDownloadProgress | null;
+  isCheckingUpdates: boolean;
+  isClearingUpdateCache: boolean;
+  availableUpdate: AvailableUpdateSummary | null;
+  onCheckUpdates: () => void;
+  onClearUpdateCache: () => void;
+  onDownloadDifferentialUpdate: () => void;
+  onDownloadFullUpdate: () => void;
+  onManualDownloadUpdate: () => void;
+  onPauseUpdateDownload: () => void;
+  onResumeUpdateDownload: () => void;
+  onCancelUpdateDownload: () => void;
+  onOpenExternalUrl: (url: string) => void;
+}
+
+const PROJECT_GITHUB_URL = 'https://github.com/Luofaiz/mentor-vault';
+const CSBAOYAN_DDL_URL = 'https://ddl.csbaoyan.top/';
+
+export function SettingsPage({
+  updateMessage,
+  updateDownloadProgress,
+  isCheckingUpdates,
+  isClearingUpdateCache,
+  availableUpdate,
+  onCheckUpdates,
+  onClearUpdateCache,
+  onDownloadDifferentialUpdate,
+  onDownloadFullUpdate,
+  onManualDownloadUpdate,
+  onPauseUpdateDownload,
+  onResumeUpdateDownload,
+  onCancelUpdateDownload,
+  onOpenExternalUrl,
+}: SettingsPageProps) {
   const { locale, t } = useI18n();
   const desktopReady = isDesktopRuntime();
   const {
@@ -38,6 +82,13 @@ export function SettingsPage() {
   const [form, setForm] = useState<MailAccountInput>(getDefault163AccountInput());
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [dataInfo, setDataInfo] = useState<DataDirectoryInfo | null>(null);
+  const [dataMessage, setDataMessage] = useState<string | null>(null);
+  const [dataMessageTone, setDataMessageTone] = useState<'success' | 'error'>('success');
+  const [isLoadingDataInfo, setIsLoadingDataInfo] = useState(false);
+  const [isChoosingDataDir, setIsChoosingDataDir] = useState(false);
+  const [isBackingUpData, setIsBackingUpData] = useState(false);
+  const [isRestoringData, setIsRestoringData] = useState(false);
 
   const activeAiConfig = aiSettings.configs.find((config) => config.isActive) ?? null;
   const defaultAccount = useMemo(
@@ -70,6 +121,128 @@ export function SettingsPage() {
       university: profile.university,
     });
   }, [profile]);
+
+
+  const loadDataDirectoryInfo = async () => {
+    const desktopApi = getDesktopApi();
+    if (!desktopApi?.system.getDataDirectoryInfo) {
+      return;
+    }
+
+    setIsLoadingDataInfo(true);
+    try {
+      setDataInfo(await desktopApi.system.getDataDirectoryInfo());
+    } catch (loadError) {
+      setDataMessageTone('error');
+      setDataMessage(loadError instanceof Error ? loadError.message : '\u52a0\u8f7d\u6570\u636e\u76ee\u5f55\u5931\u8d25\u3002');
+    } finally {
+      setIsLoadingDataInfo(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadDataDirectoryInfo();
+  }, []);
+
+  const handleOpenDataDirectory = async () => {
+    const desktopApi = getDesktopApi();
+    try {
+      await desktopApi?.system.openDataDirectory?.();
+    } catch (openError) {
+      setDataMessageTone('error');
+      setDataMessage(openError instanceof Error ? openError.message : '\u6253\u5f00\u6570\u636e\u76ee\u5f55\u5931\u8d25\u3002');
+    }
+  };
+
+  const handleChooseDataDirectory = async () => {
+    const desktopApi = getDesktopApi();
+    if (!desktopApi?.system.chooseDataDirectory) {
+      setDataMessageTone('error');
+      setDataMessage('\u5f53\u524d\u73af\u5883\u4e0d\u652f\u6301\u4fee\u6539\u6570\u636e\u76ee\u5f55\u3002');
+      return;
+    }
+
+    setIsChoosingDataDir(true);
+    setDataMessage(null);
+    try {
+      const result = await desktopApi.system.chooseDataDirectory();
+      if (!('dataDir' in result)) {
+        return;
+      }
+      setDataMessageTone('success');
+      setDataMessage(`\u6570\u636e\u76ee\u5f55\u5df2\u5207\u6362\u5230\uff1a${result.dataDir}\u3002\u5f53\u524d\u6570\u636e\u5df2\u590d\u5236\u8fc7\u53bb\uff0c\u5efa\u8bae\u91cd\u542f\u7a0b\u5e8f\u540e\u7ee7\u7eed\u4f7f\u7528\u3002`);
+      await loadDataDirectoryInfo();
+    } catch (chooseError) {
+      setDataMessageTone('error');
+      setDataMessage(chooseError instanceof Error ? chooseError.message : '\u4fee\u6539\u6570\u636e\u76ee\u5f55\u5931\u8d25\u3002');
+    } finally {
+      setIsChoosingDataDir(false);
+    }
+  };
+
+  const handleCreateDataBackup = async () => {
+    const desktopApi = getDesktopApi();
+    if (!desktopApi?.system.createDataBackup) {
+      setDataMessageTone('error');
+      setDataMessage('\u5f53\u524d\u73af\u5883\u4e0d\u652f\u6301\u5907\u4efd\u6570\u636e\u3002');
+      return;
+    }
+
+    setIsBackingUpData(true);
+    setDataMessage(null);
+    try {
+      const result = await desktopApi.system.createDataBackup();
+      if (!('filePath' in result)) {
+        return;
+      }
+      setDataMessageTone('success');
+      setDataMessage(`\u5907\u4efd\u5df2\u4fdd\u5b58\uff1a${result.filePath}`);
+    } catch (backupError) {
+      setDataMessageTone('error');
+      setDataMessage(backupError instanceof Error ? backupError.message : '\u5907\u4efd\u6570\u636e\u5931\u8d25\u3002');
+    } finally {
+      setIsBackingUpData(false);
+    }
+  };
+
+  const handleRestoreDataBackup = async () => {
+    const confirmed = window.confirm('\u6062\u590d\u4f1a\u7528\u5907\u4efd\u6587\u4ef6\u8986\u76d6\u5f53\u524d\u6570\u636e\u3002\u7a0b\u5e8f\u4f1a\u5148\u81ea\u52a8\u5907\u4efd\u5f53\u524d\u6570\u636e\uff0c\u786e\u8ba4\u7ee7\u7eed\u5417\uff1f');
+    if (!confirmed) {
+      return;
+    }
+
+    const desktopApi = getDesktopApi();
+    if (!desktopApi?.system.restoreDataBackup) {
+      setDataMessageTone('error');
+      setDataMessage('\u5f53\u524d\u73af\u5883\u4e0d\u652f\u6301\u6062\u590d\u6570\u636e\u3002');
+      return;
+    }
+
+    setIsRestoringData(true);
+    setDataMessage(null);
+    try {
+      const result = await desktopApi.system.restoreDataBackup();
+      if (!('previousBackupPath' in result)) {
+        return;
+      }
+      setDataMessageTone('success');
+      setDataMessage(`\u6570\u636e\u5df2\u6062\u590d\u3002\u6062\u590d\u524d\u7684\u6570\u636e\u5df2\u5907\u4efd\u5230\uff1a${result.previousBackupPath}\u3002\u5efa\u8bae\u91cd\u542f\u7a0b\u5e8f\u5237\u65b0\u9875\u9762\u6570\u636e\u3002`);
+      await loadDataDirectoryInfo();
+    } catch (restoreError) {
+      setDataMessageTone('error');
+      setDataMessage(restoreError instanceof Error ? restoreError.message : '\u6062\u590d\u6570\u636e\u5931\u8d25\u3002');
+    } finally {
+      setIsRestoringData(false);
+    }
+  };
+
+
+  const isUpdateDownloadPaused = updateDownloadProgress?.status === 'paused';
+  const isDifferentialUpdate = updateDownloadProgress?.mode === 'differential';
+  const progressPercent = updateDownloadProgress?.percent ?? null;
+  const progressWidth = progressPercent === null ? 100 : Math.max(0, Math.min(100, progressPercent));
+  const canChooseUpdateDownload = Boolean(availableUpdate && !updateDownloadProgress && !isCheckingUpdates);
+  const progressLabel = isUpdateDownloadPaused ? '已暂停' : progressPercent === null ? '正在下载' : `${progressPercent}%`;
 
   const updateAiProvider = (provider: AIProvider) => {
     setAiForm((current) => ({
@@ -255,10 +428,10 @@ export function SettingsPage() {
     <div className="flex-1 overflow-y-auto px-8 py-8 md:px-12">
       <div className="mx-auto w-full max-w-7xl space-y-8">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-400">{t('mailSettings')}</p>
-          <h1 className="mt-3 text-4xl font-serif font-medium tracking-tight text-stone-900">{t('mailSettingsTitle')}</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-400">设置</p>
+          <h1 className="mt-3 text-4xl font-serif font-medium tracking-tight text-stone-900">设置中心</h1>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-stone-500">
-            {t('mailSettingsDesc')}
+            集中管理数据目录、更新、备份恢复、外部链接、邮箱账号和 AI 配置。
           </p>
         </div>
 
@@ -267,6 +440,206 @@ export function SettingsPage() {
             {t('webPreviewOnly')}
           </div>
         )}
+
+        <section className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent/10">
+                  <HardDrive className="h-5 w-5 text-accent" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-400">应用与数据</p>
+                  <h2 className="mt-1 text-2xl font-semibold tracking-tight text-stone-900">数据、更新与备份</h2>
+                </div>
+              </div>
+              <p className="mt-4 max-w-3xl text-sm leading-7 text-stone-500">
+                集中管理数据目录、备份恢复、更新检查和常用外部入口。数据文件不会放进 GitHub Release。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => onOpenExternalUrl(PROJECT_GITHUB_URL)}
+                className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50"
+              >
+                <Github className="h-4 w-4" />
+                <span>打开 GitHub</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenExternalUrl(CSBAOYAN_DDL_URL)}
+                className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50"
+              >
+                <ExternalLink className="h-4 w-4" />
+                <span>CS 保研 DDL</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+            <div className="rounded-[1.75rem] border border-stone-200 bg-stone-50 px-5 py-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-400">数据目录</p>
+                  <p className="mt-2 break-all text-sm leading-6 text-stone-700">
+                    {isLoadingDataInfo ? '加载中...' : dataInfo?.dataDir ?? '尚未读取到数据目录'}
+                  </p>
+                  {dataInfo && (
+                    <p className="mt-2 text-xs text-stone-400">
+                      {dataInfo.isCustomDataDir ? '正在使用自定义目录' : '正在使用默认目录'} · 数据文件：{dataInfo.storePath}
+                    </p>
+                  )}
+                </div>
+                <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+                  数据
+                </span>
+              </div>
+
+              {dataInfo?.files?.length ? (
+                <div className="mt-4 grid gap-2">
+                  {dataInfo.files.map((file) => (
+                    <div key={file.path} className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium text-stone-700">{file.path.split(/[\\/]/).pop()}</span>
+                        <span className="text-stone-400">{file.exists ? formatBytes(file.size) : '未找到'}</span>
+                      </div>
+                      <p className="mt-1 break-all text-xs text-stone-400">{file.path}</p>
+                      <p className="mt-1 text-xs text-stone-400">修改于 {formatDataTime(file.updatedAt)}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {dataMessage && (
+                <div className={`mt-4 rounded-[1.5rem] px-4 py-4 text-sm ${dataMessageTone === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                  {dataMessage}
+                </div>
+              )}
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleOpenDataDirectory()}
+                  disabled={!desktopReady}
+                  className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <FolderOpen className="h-4 w-4" />
+                  <span>打开目录</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleChooseDataDirectory()}
+                  disabled={!desktopReady || isChoosingDataDir}
+                  className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <FolderOpen className="h-4 w-4" />
+                  <span>{isChoosingDataDir ? '选择中...' : '修改目录'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleCreateDataBackup()}
+                  disabled={!desktopReady || isBackingUpData}
+                  className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>{isBackingUpData ? '备份中...' : '备份数据'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleRestoreDataBackup()}
+                  disabled={!desktopReady || isRestoringData}
+                  className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>{isRestoringData ? '恢复中...' : '恢复数据'}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-[1.75rem] border border-stone-200 bg-stone-50 px-5 py-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-400">更新</p>
+              <p className="mt-2 text-sm leading-6 text-stone-500">检查新版本、清理下载缓存，也可以手动打开发布页。</p>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={onCheckUpdates}
+                  disabled={!desktopReady || isCheckingUpdates}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isCheckingUpdates ? 'animate-spin' : ''}`} />
+                  <span>{isCheckingUpdates ? t('checkingUpdates') : t('checkUpdates')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onClearUpdateCache}
+                  disabled={!desktopReady || isClearingUpdateCache || Boolean(updateDownloadProgress)}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <RotateCcw className={`h-4 w-4 ${isClearingUpdateCache ? 'animate-spin' : ''}`} />
+                  <span>{isClearingUpdateCache ? '清理中' : '清理更新缓存'}</span>
+                </button>
+              </div>
+
+              {updateMessage && (
+                <div className="mt-4 rounded-2xl bg-white px-4 py-3 text-sm leading-6 text-stone-600">
+                  <p>{updateMessage}</p>
+                  {availableUpdate?.notes && !updateDownloadProgress && (
+                    <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-stone-400">{availableUpdate.notes}</p>
+                  )}
+                  {canChooseUpdateDownload && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {availableUpdate?.canInstallDifferential && (
+                        <button type="button" onClick={onDownloadDifferentialUpdate} className="inline-flex h-10 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-xs font-medium text-stone-700 transition-colors hover:bg-stone-100">
+                          增量下载
+                        </button>
+                      )}
+                      {availableUpdate?.downloadUrls.length ? (
+                        <button type="button" onClick={onDownloadFullUpdate} className="inline-flex h-10 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-xs font-medium text-stone-700 transition-colors hover:bg-stone-100">
+                          全量下载
+                        </button>
+                      ) : null}
+                      {availableUpdate?.releaseUrl ? (
+                        <button type="button" onClick={onManualDownloadUpdate} className="inline-flex h-10 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 px-4 text-xs font-medium text-stone-700 transition-colors hover:bg-stone-100">
+                          手动下载
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
+                  {updateDownloadProgress && (
+                    <div className="mt-3 space-y-2">
+                      <div className="h-2 overflow-hidden rounded-full bg-stone-200">
+                        <div className={`h-full rounded-full bg-stone-900 transition-all ${progressPercent === null ? 'animate-pulse' : ''}`} style={{ width: `${progressWidth}%` }} />
+                      </div>
+                      <div className="flex items-center justify-between gap-3 text-xs font-medium text-stone-600">
+                        <span>{progressLabel}</span>
+                        <span>{formatBytes(updateDownloadProgress.transferredBytes)} / {formatBytes(updateDownloadProgress.totalBytes)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 text-xs text-stone-400">
+                        <span>{formatBytes(updateDownloadProgress.bytesPerSecond)}/s</span>
+                        <span>剩余 {formatDuration(updateDownloadProgress.remainingSeconds)}</span>
+                      </div>
+                      {updateDownloadProgress.status !== 'completed' && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {!isDifferentialUpdate && (
+                            <button type="button" onClick={isUpdateDownloadPaused ? onResumeUpdateDownload : onPauseUpdateDownload} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs font-medium text-stone-600 transition-colors hover:bg-stone-100">
+                              {isUpdateDownloadPaused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+                              <span>{isUpdateDownloadPaused ? '继续' : '暂停'}</span>
+                            </button>
+                          )}
+                          <button type="button" onClick={onCancelUpdateDownload} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-100">
+                            <X className="h-3.5 w-3.5" />
+                            <span>取消</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
 
         <section className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
           <div className="grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
@@ -685,4 +1058,45 @@ export function SettingsPage() {
       </div>
     </div>
   );
+}
+
+function formatBytes(bytes?: number) {
+  if (!Number.isFinite(bytes) || !bytes) {
+    return '--';
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  const fractionDigits = value >= 10 || unitIndex === 0 ? 0 : 1;
+  return `${value.toFixed(fractionDigits)} ${units[unitIndex]}`;
+}
+
+function formatDuration(seconds?: number) {
+  if (!Number.isFinite(seconds) || seconds === undefined) {
+    return '--';
+  }
+
+  const roundedSeconds = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(roundedSeconds / 60);
+  const remainingSeconds = roundedSeconds % 60;
+
+  if (minutes <= 0) {
+    return `${remainingSeconds} ?`;
+  }
+
+  return `${minutes} ? ${remainingSeconds} ?`;
+}
+
+function formatDataTime(value?: number | null) {
+  if (!Number.isFinite(value ?? NaN)) {
+    return '--';
+  }
+
+  return new Date(value as number).toLocaleString('zh-CN', { hour12: false });
 }
