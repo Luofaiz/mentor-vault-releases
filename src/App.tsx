@@ -340,7 +340,7 @@ export default function App() {
     try {
       const result = await desktopApi.system.clearUpdateCache();
       showUpdateMessage(`已清理更新缓存，释放 ${formatStorageSize(result.freedBytes)}。`, {
-        transient: result.freedBytes <= 0,
+        transient: true,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error ?? '未知错误');

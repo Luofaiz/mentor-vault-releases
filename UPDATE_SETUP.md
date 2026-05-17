@@ -36,7 +36,7 @@
 - `latest.json`
 
 其中 `latest.yml` 和 `.blockmap` 由 `electron-builder` 生成，用于增量下载；`MentorVaultSetup.exe` 和 `latest.json` 用于全量下载。
-程序会按新版版本号读取具体 Release 里的 `latest.yml`，例如 `https://github.com/Luofaiz/mentor-vault/releases/download/v0.2.38/latest.yml`。
+程序会按新版版本号读取具体 Release 里的 `latest.yml`，例如 `https://github.com/Luofaiz/mentor-vault/releases/download/v0.2.39/latest.yml`。
 
 把这些文件放到稳定公网地址，例如：
 
