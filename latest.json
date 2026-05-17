@@ -1,7 +1,7 @@
 {
-  "version": "0.2.46",
-  "notes": "修复数据加载失败，恢复侧栏外链按钮。",
+  "version": "0.2.47",
+  "notes": "修复侧栏 CS 保研 DDL 图标显示。",
   "downloadUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe",
-  "downloadSha256": "2beb0bc9e59dfb2842519c2862d0f78943046c6d651e81f406f6da83adaa596b",
+  "downloadSha256": "a1c6e96725e9a38efa5455c7c579db64b16d169eb74fb7de0d6eead229d7aa68",
   "releaseUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest"
 }

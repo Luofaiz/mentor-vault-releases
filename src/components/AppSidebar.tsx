@@ -66,7 +66,7 @@ export function AppSidebar({
             aria-label="打开 CS 保研 DDL"
             className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-stone-950 shadow-lg shadow-stone-900/15 transition-colors hover:bg-stone-800"
           >
-            <img src="/csbaoyan-ddl.svg" alt="" className="h-6 w-6" />
+            <img src="./csbaoyan-ddl.svg" alt="" className="h-6 w-6" />
           </button>
         </div>
       </div>
