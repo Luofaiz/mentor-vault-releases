@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, net, session, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createWriteStream } from 'node:fs';
@@ -33,8 +33,10 @@ const UPDATE_CACHE_DIRNAMES = ['vibe-sender-updater', 'mentor-vault-updater'];
 const UPDATE_DOWNLOAD_PROGRESS_CHANNEL = 'system:update-download-progress';
 const AUTO_UPDATE_LATEST_BASE_URL = 'https://github.com/Luofaiz/mentor-vault/releases/latest/download/';
 const AUTO_UPDATE_VERSION_BASE_URL_PREFIX = 'https://github.com/Luofaiz/mentor-vault/releases/download/';
+const ELECTRON_UPDATER_SESSION_NAME = 'electron-updater';
 let currentUpdateDownloadTask = null;
 let currentDifferentialUpdateCancellationToken = null;
+let updateProxyReadyPromise = null;
 
 const DEFAULT_PROFESSORS = [];
 
@@ -113,6 +115,34 @@ function appendUpdateManifestUrl(urls, value) {
   }
 }
 
+async function prepareUpdateProxy() {
+  if (updateProxyReadyPromise) {
+    return updateProxyReadyPromise;
+  }
+
+  updateProxyReadyPromise = (async () => {
+    const proxyConfig = { mode: 'system' };
+    const updaterSession = session.fromPartition(ELECTRON_UPDATER_SESSION_NAME, { cache: false });
+    await Promise.all([session.defaultSession.setProxy(proxyConfig), updaterSession.setProxy(proxyConfig)]);
+    await Promise.allSettled([
+      session.defaultSession.forceReloadProxyConfig?.(),
+      updaterSession.forceReloadProxyConfig?.(),
+    ]);
+    await Promise.allSettled([session.defaultSession.closeAllConnections(), updaterSession.closeAllConnections()]);
+  })().catch((error) => {
+    console.warn('[update-proxy] Failed to use system proxy settings.', error);
+  }).finally(() => {
+    updateProxyReadyPromise = null;
+  });
+
+  return updateProxyReadyPromise;
+}
+
+async function fetchForUpdate(url, options) {
+  await prepareUpdateProxy();
+  return net.fetch(url, options);
+}
+
 async function getUpdateManifestUrls() {
   const urls = [];
 
@@ -140,7 +170,7 @@ async function fetchUpdateManifest(manifestUrl) {
   const timeout = setTimeout(() => controller.abort(), UPDATE_CHECK_TIMEOUT_MS);
 
   try {
-    const response = await fetch(manifestUrl, {
+    const response = await fetchForUpdate(manifestUrl, {
       signal: controller.signal,
       headers: {
         Accept: 'application/json',
@@ -353,6 +383,7 @@ async function installDifferentialUpdate(webContents, latestVersion) {
   currentDifferentialUpdateCancellationToken = cancellationToken;
 
   try {
+    await prepareUpdateProxy();
     const checkResult = await autoUpdater.checkForUpdates();
     if (!checkResult?.isUpdateAvailable) {
       throw new Error('没有可用的增量更新。');
@@ -652,7 +683,7 @@ async function downloadUpdateInstaller(downloadUrl, webContents) {
   currentUpdateDownloadTask = task;
 
   try {
-    const response = await fetch(parsed.toString(), {
+    const response = await fetchForUpdate(parsed.toString(), {
       signal: controller.signal,
       headers: {
         Accept: 'application/octet-stream,application/x-msdownload,*/*',
@@ -2189,6 +2220,7 @@ ipcMain.handle('mail:send', async (_event, payload) => {
 });
 
 app.whenReady().then(() => {
+  void prepareUpdateProxy();
   createWindow();
 
   app.on('activate', () => {

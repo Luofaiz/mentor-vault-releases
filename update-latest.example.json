@@ -1,6 +1,6 @@
 {
-  "version": "0.2.40",
-  "notes": "在院校索引中显示院校层次。",
+  "version": "0.2.41",
+  "notes": "更新下载改为使用系统代理。",
   "downloadUrls": [
     "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe"
   ],
