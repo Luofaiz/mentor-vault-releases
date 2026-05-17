@@ -11,6 +11,11 @@ contextBridge.exposeInMainWorld('vibe', {
     resumeUpdateDownload: () => ipcRenderer.invoke('system:resume-update-download'),
     cancelUpdateDownload: () => ipcRenderer.invoke('system:cancel-update-download'),
     clearUpdateCache: () => ipcRenderer.invoke('system:clear-update-cache'),
+    getDataDirectoryInfo: () => ipcRenderer.invoke('system:get-data-directory-info'),
+    openDataDirectory: () => ipcRenderer.invoke('system:open-data-directory'),
+    chooseDataDirectory: () => ipcRenderer.invoke('system:choose-data-directory'),
+    createDataBackup: () => ipcRenderer.invoke('system:create-data-backup'),
+    restoreDataBackup: () => ipcRenderer.invoke('system:restore-data-backup'),
     onUpdateDownloadProgress: (callback) => {
       const listener = (_event, progress) => callback(progress);
       ipcRenderer.on('system:update-download-progress', listener);
