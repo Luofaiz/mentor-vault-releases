@@ -18,6 +18,12 @@
     ${EndIf}
   FunctionEnd
 
+  !macro customCheckAppRunning
+    DetailPrint "正在关闭已运行的 ${PRODUCT_NAME}。"
+    nsExec::ExecToLog `"$CmdPath" /C taskkill /F /IM "${APP_EXECUTABLE_FILENAME}" /FI "USERNAME eq %USERNAME%"`
+    Sleep 800
+  !macroend
+
   !macro customInit
     ReadRegStr $0 HKCU "Software\${APP_GUID}" InstallLocation
     ReadRegStr $1 HKLM "Software\${APP_GUID}" InstallLocation
