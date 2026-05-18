@@ -199,7 +199,7 @@ async function fetchUpdateManifest(manifestUrl) {
     return response.json();
   } catch (error) {
     if (error?.name === 'AbortError') {
-      throw new Error('检查更新超时，请稍后重试，或直接打开 GitHub Release 下载新版。');
+      throw new Error('?????????????????? GitHub Release ?????');
     }
 
     throw error;
@@ -231,8 +231,8 @@ async function fetchBestUpdateManifest(manifestUrls, currentVersion) {
   }
 
   throw new Error(
-    `所有更新地址都无法访问。最后一个错误：${
-      lastError instanceof Error ? lastError.message : String(lastError ?? '未知错误')
+    `???????????????????${
+      lastError instanceof Error ? lastError.message : String(lastError ?? '????')
     }`,
   );
 }
@@ -319,6 +319,57 @@ async function openExternalUrl(url) {
   await shell.openExternal(parsed.toString());
 }
 
+function isHttpExternalUrl(url) {
+  try {
+    const parsed = new URL(String(url ?? '').trim());
+    return ['http:', 'https:'].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function shouldOpenInDefaultBrowser(targetUrl, currentUrl) {
+  if (!isHttpExternalUrl(targetUrl)) {
+    return false;
+  }
+
+  if (!currentUrl || currentUrl.startsWith('file:')) {
+    return true;
+  }
+
+  try {
+    return new URL(targetUrl).origin !== new URL(currentUrl).origin;
+  } catch {
+    return true;
+  }
+}
+
+function openExternalUrlFromWebContents(url) {
+  if (!isHttpExternalUrl(url)) {
+    return;
+  }
+
+  shell.openExternal(String(url).trim()).catch((error) => {
+    console.warn('[external-url] Failed to open URL in default browser.', error);
+  });
+}
+
+function configureExternalLinkHandling(window) {
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    openExternalUrlFromWebContents(url);
+    return { action: 'deny' };
+  });
+
+  window.webContents.on('will-navigate', (event, url) => {
+    if (!shouldOpenInDefaultBrowser(url, window.webContents.getURL())) {
+      return;
+    }
+
+    event.preventDefault();
+    openExternalUrlFromWebContents(url);
+  });
+}
+
 function sendUpdateDownloadProgress(webContents, progress) {
   if (!webContents || webContents.isDestroyed()) {
     return;
@@ -385,15 +436,15 @@ function configureDifferentialUpdater(webContents, latestVersion) {
 
 async function installDifferentialUpdate(webContents, latestVersion) {
   if (process.platform !== 'win32') {
-    throw new Error('当前增量更新只支持 Windows。');
+    throw new Error('????????? Windows?');
   }
 
   if (!app.isPackaged) {
-    throw new Error('开发模式不能执行增量更新，请打包安装后再测试。');
+    throw new Error('???????????????????????');
   }
 
   if (currentDifferentialUpdateCancellationToken) {
-    throw new Error('已有增量更新正在下载。');
+    throw new Error('???????????');
   }
 
   configureDifferentialUpdater(webContents, latestVersion);
@@ -404,7 +455,7 @@ async function installDifferentialUpdate(webContents, latestVersion) {
     await prepareUpdateProxy();
     const checkResult = await autoUpdater.checkForUpdates();
     if (!checkResult?.isUpdateAvailable) {
-      throw new Error('没有可用的增量更新。');
+      throw new Error('??????????');
     }
 
     sendUpdateDownloadProgress(webContents, {
@@ -435,7 +486,7 @@ async function installDifferentialUpdate(webContents, latestVersion) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error ?? '');
     if (/cancel/i.test(message) || cancellationToken.cancelled) {
-      throw new Error('增量更新下载已取消。');
+      throw new Error('??????????');
     }
     throw error;
   } finally {
@@ -473,7 +524,7 @@ function resumeUpdateDownloadTask(task) {
 
 function pauseCurrentUpdateDownload() {
   if (currentDifferentialUpdateCancellationToken) {
-    return { ok: false, reason: '增量更新暂不支持暂停。' };
+    return { ok: false, reason: '???????????' };
   }
 
   if (!currentUpdateDownloadTask || currentUpdateDownloadTask.isCanceled) {
@@ -486,7 +537,7 @@ function pauseCurrentUpdateDownload() {
 
 function resumeCurrentUpdateDownload() {
   if (currentDifferentialUpdateCancellationToken) {
-    return { ok: false, reason: '增量更新暂不支持暂停。' };
+    return { ok: false, reason: '???????????' };
   }
 
   if (!currentUpdateDownloadTask || currentUpdateDownloadTask.isCanceled) {
@@ -552,7 +603,7 @@ function getUpdateCachePaths() {
 
 async function clearUpdateCache() {
   if (currentUpdateDownloadTask || currentDifferentialUpdateCancellationToken) {
-    throw new Error('更新正在下载中，请先取消或等待下载结束后再清理缓存。');
+    throw new Error('??????????????????????????');
   }
 
   const cachePaths = Array.from(new Set(getUpdateCachePaths().map((cachePath) => path.resolve(cachePath))));
@@ -711,14 +762,14 @@ async function calculateFileSha256(filePath) {
 async function downloadUpdateInstaller(downloadUrl, expectedSha256, webContents) {
   const parsed = new URL(String(downloadUrl ?? '').trim());
   if (!['http:', 'https:'].includes(parsed.protocol)) {
-    throw new Error('更新安装包地址必须使用 http 或 https。');
+    throw new Error('??????????? http ? https?');
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), UPDATE_DOWNLOAD_TIMEOUT_MS);
   const installerPath = path.join(app.getPath('temp'), `MentorVaultSetup-${Date.now()}.exe`);
   if (currentUpdateDownloadTask) {
-    throw new Error('已有更新安装包正在下载。');
+    throw new Error('????????????');
   }
 
   const task = createUpdateDownloadTask(controller, installerPath);
@@ -785,18 +836,18 @@ async function downloadUpdateInstaller(downloadUrl, expectedSha256, webContents)
       const actualSha256 = await calculateFileSha256(installerPath);
       if (actualSha256 !== normalizedExpectedSha256) {
         await removeFileIfExists(installerPath);
-        throw new Error('更新安装包校验失败。下载文件可能不完整或被篡改，请重新下载，或打开 GitHub Release 手动下载。');
+        throw new Error('????????????????????????????????? GitHub Release ?????');
       }
     }
     return installerPath;
   } catch (error) {
     if (task.isCanceled) {
       await removeFileIfExists(installerPath);
-      throw new Error('更新下载已取消。');
+      throw new Error('????????');
     }
 
     if (error?.name === 'AbortError') {
-      throw new Error('下载安装包超时，请稍后重试，或直接打开 GitHub Release 下载新版安装包。');
+      throw new Error('??????????????????? GitHub Release ????????');
     }
 
     throw error;
@@ -811,13 +862,13 @@ async function downloadUpdateInstaller(downloadUrl, expectedSha256, webContents)
 async function startVisibleUpdateInstaller(installerPath) {
   const result = await shell.openPath(installerPath);
   if (result) {
-    throw new Error(`启动安装程序失败：${result}`);
+    throw new Error(`?????????${result}`);
   }
 }
 
 async function installUpdate(updateInput, webContents) {
   if (process.platform !== 'win32') {
-    throw new Error('当前自动安装更新只支持 Windows。');
+    throw new Error('??????????? Windows?');
   }
 
   const downloadUrls = normalizeDownloadUrls(
@@ -830,7 +881,7 @@ async function installUpdate(updateInput, webContents) {
       ? updateInput.downloadSha256ByUrl
       : {};
   if (downloadUrls.length === 0) {
-    throw new Error('没有可用的更新安装包下载地址。');
+    throw new Error('???????????????');
   }
 
   let installerPath = '';
@@ -843,14 +894,14 @@ async function installUpdate(updateInput, webContents) {
     } catch (error) {
       lastError = error;
       const message = error instanceof Error ? error.message : String(error ?? '');
-      if (/取消|canceled|cancelled/i.test(message) || index === downloadUrls.length - 1) {
+      if (/??|canceled|cancelled/i.test(message) || index === downloadUrls.length - 1) {
         throw error;
       }
     }
   }
 
   if (!installerPath) {
-    throw lastError ?? new Error('更新安装包下载失败。');
+    throw lastError ?? new Error('??????????');
   }
 
   await startVisibleUpdateInstaller(installerPath);
@@ -934,7 +985,7 @@ function extractStoreFromBackupPayload(value) {
     return value;
   }
 
-  throw new Error('选择的文件不是 Mentor Vault 数据备份。');
+  throw new Error('??????? Mentor Vault ?????');
 }
 
 async function getDataFileInfo(fileName) {
@@ -1014,7 +1065,7 @@ async function saveDataLocation(targetDir) {
 
 async function chooseDataDirectory() {
   const result = await dialog.showOpenDialog({
-    title: '选择数据存放目录',
+    title: '????????',
     defaultPath: getPreferredDataDir(),
     properties: ['openDirectory', 'createDirectory'],
   });
@@ -1037,7 +1088,7 @@ async function chooseDataDirectory() {
 
 async function createDataBackup() {
   const result = await dialog.showSaveDialog({
-    title: '备份 Mentor Vault 数据',
+    title: '?? Mentor Vault ??',
     defaultPath: path.join(app.getPath('documents'), getBackupFileName()),
     filters: [{ name: 'JSON', extensions: ['json'] }],
   });
@@ -1053,7 +1104,7 @@ async function createDataBackup() {
 
 async function restoreDataBackup() {
   const result = await dialog.showOpenDialog({
-    title: '恢复 Mentor Vault 数据',
+    title: '?? Mentor Vault ??',
     properties: ['openFile'],
     filters: [{ name: 'JSON', extensions: ['json'] }],
   });
@@ -1108,8 +1159,8 @@ function normalizeProfessorStatus(value) {
     return 'Pending';
   }
 
-  if (status === '不读' || status === '未读？') {
-    return '未读';
+  if (status === '??' || status === '???') {
+    return '??';
   }
 
   return status;
@@ -1123,11 +1174,11 @@ function normalizeProfessorRecord(record) {
     (lastContactDate && status !== 'Pending' && status !== 'Drafting' ? lastContactDate : '');
 
   const legacyParts = [
-    record?.country ? `原国家/地区：${String(record.country).trim()}` : '',
-    record?.applicationSeason ? `原申请季：${String(record.applicationSeason).trim()}` : '',
-    record?.followUpDate ? `原计划跟进日期：${normalizeDateValue(record.followUpDate)}` : '',
+    record?.country ? `???/???${String(record.country).trim()}` : '',
+    record?.applicationSeason ? `?????${String(record.applicationSeason).trim()}` : '',
+    record?.followUpDate ? `????????${normalizeDateValue(record.followUpDate)}` : '',
   ].filter(Boolean);
-  const legacyNote = legacyParts.length > 0 ? `[迁移保留] ${legacyParts.join('；')}` : '';
+  const legacyNote = legacyParts.length > 0 ? `[????] ${legacyParts.join('?')}` : '';
   const currentNotes = String(record?.notes ?? '').trim();
   const notes = legacyNote && currentNotes.includes(legacyNote)
     ? currentNotes
@@ -1243,6 +1294,8 @@ function createWindow() {
       nodeIntegration: false,
     },
   });
+
+  configureExternalLinkHandling(window);
 
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
   if (devServerUrl) {
