@@ -1,6 +1,6 @@
 {
   "version": "0.2.50",
-  "notes": "?????????????",
+  "notes": "修复导师主页外链打开方式。",
   "downloadUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe",
   "downloadSha256": "b15993c611db7e059dc5e98d71f1926ff2343cf84ed728843c8aeba4eb3d9da3",
   "releaseUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest"
