@@ -1,7 +1,7 @@
 {
-  "version": "0.2.51",
-  "notes": "文档笔记新增富文本工具栏：标题、加粗、斜体、删除线、下划线、引用、代码块、列表、待办、链接、图片和清除格式。",
+  "version": "0.2.52",
+  "notes": "Hotfix: fix the v0.2.51 startup crash caused by an invalid regular expression in the Electron main process. The rich text note toolbar remains included.",
   "downloadUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe",
-  "downloadSha256": "cc874f871e76480fe72f5cc5366a4c74bacb7ef515f543262c9302ff2fb9098e",
+  "downloadSha256": "65a7c77d6af115b20296fec0dd839ef73abc6c0290f087b45c21ef9d237ee31e",
   "releaseUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest"
 }

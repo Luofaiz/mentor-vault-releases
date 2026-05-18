@@ -894,7 +894,7 @@ async function installUpdate(updateInput, webContents) {
     } catch (error) {
       lastError = error;
       const message = error instanceof Error ? error.message : String(error ?? '');
-      if (/??|canceled|cancelled/i.test(message) || index === downloadUrls.length - 1) {
+      if (message.toLowerCase().includes('cancel') || index === downloadUrls.length - 1) {
         throw error;
       }
     }
