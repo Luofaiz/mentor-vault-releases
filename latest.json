@@ -1,7 +1,7 @@
 {
-  "version": "0.2.50",
-  "notes": "修复导师主页外链打开方式。",
+  "version": "0.2.51",
+  "notes": "文档笔记新增富文本工具栏：标题、加粗、斜体、删除线、下划线、引用、代码块、列表、待办、链接、图片和清除格式。",
   "downloadUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe",
-  "downloadSha256": "b15993c611db7e059dc5e98d71f1926ff2343cf84ed728843c8aeba4eb3d9da3",
+  "downloadSha256": "cc874f871e76480fe72f5cc5366a4c74bacb7ef515f543262c9302ff2fb9098e",
   "releaseUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest"
 }

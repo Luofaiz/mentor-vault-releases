@@ -1,5 +1,36 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent } from 'react';
-import { Download, FileImage, FileText, Plus, Search, Trash2 } from 'lucide-react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ClipboardEvent,
+  type DragEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+} from 'react';
+import {
+  Bold,
+  Code2,
+  Download,
+  Eraser,
+  FileImage,
+  FileText,
+  Italic,
+  Link,
+  List,
+  ListChecks,
+  ListOrdered,
+  Plus,
+  Quote,
+  Redo2,
+  Search,
+  Strikethrough,
+  Trash2,
+  Underline,
+  Undo2,
+} from 'lucide-react';
 import { useDocumentNotes } from '../hooks/useDocumentNotes';
 import { useListOrderPreferences } from '../hooks/useListOrderPreferences';
 import { useI18n } from '../lib/i18n';
@@ -9,9 +40,85 @@ import type { DocumentNote } from '../types/note';
 
 type DropPosition = 'before' | 'after';
 type InsertImageStatus = 'idle' | 'loading' | 'error';
+type EditorBlock = 'div' | 'h1' | 'h2' | 'h3' | 'blockquote' | 'pre';
+
+interface ActiveEditorFormats {
+  block: EditorBlock;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikeThrough: boolean;
+  orderedList: boolean;
+  unorderedList: boolean;
+}
 
 const MARKDOWN_IMAGE_PATTERN = /!\[([^\]]*)\]\((data:image\/[^)\s]+|https?:\/\/[^)\s]+|blob:[^)]+|file:[^)]+)\)/g;
-const BLOCK_TAGS = new Set(['DIV', 'P', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6']);
+const MARKDOWN_INLINE_PATTERN =
+  /!\[([^\]]*)\]\((data:image\/[^)\s]+|https?:\/\/[^)\s]+|blob:[^)]+|file:[^)]+)\)|\[([^\]]+)\]\(([^)\s]+)\)|`([^`\n]+)`|\*\*([^*\n]+)\*\*|~~([^~\n]+)~~|<u>(.*?)<\/u>|\*([^*\n]+)\*/g;
+const HEADING_MARKDOWN_PATTERN = /^(#{1,3})\s+(.+)$/;
+const TASK_MARKDOWN_PATTERN = /^\s*[-*]\s+\[([ xX])\]\s+(.*)$/;
+const UNORDERED_LIST_MARKDOWN_PATTERN = /^\s*[-*]\s+(.*)$/;
+const ORDERED_LIST_MARKDOWN_PATTERN = /^\s*\d+[.)]\s+(.*)$/;
+const FENCE_MARKDOWN_PATTERN = /^\s*```\s*$/;
+const INITIAL_ACTIVE_FORMATS: ActiveEditorFormats = {
+  block: 'div',
+  bold: false,
+  italic: false,
+  underline: false,
+  strikeThrough: false,
+  orderedList: false,
+  unorderedList: false,
+};
+
+function readCommandState(command: string) {
+  try {
+    return document.queryCommandState(command);
+  } catch {
+    return false;
+  }
+}
+
+function getSelectionNode(selection: Selection) {
+  if (selection.rangeCount === 0) {
+    return null;
+  }
+
+  const node = selection.getRangeAt(0).commonAncestorContainer;
+  return node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+}
+
+function findSelectionBlock(editor: HTMLElement, selection: Selection): EditorBlock {
+  let node = getSelectionNode(selection);
+  while (node && node !== editor) {
+    if (node instanceof HTMLElement) {
+      if (node.tagName === 'H1' || node.tagName === 'H2' || node.tagName === 'H3') {
+        return node.tagName.toLowerCase() as EditorBlock;
+      }
+
+      if (node.tagName === 'BLOCKQUOTE') {
+        return 'blockquote';
+      }
+
+      if (node.tagName === 'PRE') {
+        return 'pre';
+      }
+    }
+    node = node.parentElement;
+  }
+
+  return 'div';
+}
+
+function selectionHasAncestorTag(editor: HTMLElement, tagName: string) {
+  const selection = window.getSelection();
+  const node = selection ? getSelectionNode(selection) : null;
+  if (!(node instanceof HTMLElement)) {
+    return false;
+  }
+
+  const ancestor = node.closest(tagName);
+  return Boolean(ancestor && editor.contains(ancestor));
+}
 
 function getDropPosition(event: DragEvent<HTMLElement>): DropPosition {
   const rect = event.currentTarget.getBoundingClientRect();
@@ -117,15 +224,60 @@ function escapeHtml(value: string) {
   });
 }
 
-function renderMarkdownLine(line: string) {
+function sanitizeLinkHref(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '#';
+  }
+
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed) && !/^(https?:|mailto:|file:|blob:|data:image\/)/i.test(trimmed)) {
+    return '#';
+  }
+
+  return trimmed;
+}
+
+function normalizeUserLinkHref(value: string) {
+  const sanitized = sanitizeLinkHref(value);
+  if (
+    sanitized === '#' ||
+    /^[a-z][a-z0-9+.-]*:/i.test(sanitized) ||
+    sanitized.startsWith('#') ||
+    sanitized.startsWith('/') ||
+    sanitized.startsWith('./') ||
+    sanitized.startsWith('../')
+  ) {
+    return sanitized;
+  }
+
+  return `https://${sanitized}`;
+}
+
+function renderMarkdownInline(line: string) {
   let html = '';
   let lastIndex = 0;
-  MARKDOWN_IMAGE_PATTERN.lastIndex = 0;
+  MARKDOWN_INLINE_PATTERN.lastIndex = 0;
 
-  for (const match of line.matchAll(MARKDOWN_IMAGE_PATTERN)) {
+  for (const match of line.matchAll(MARKDOWN_INLINE_PATTERN)) {
     const index = match.index ?? 0;
     html += escapeHtml(line.slice(lastIndex, index));
-    html += `<img src="${escapeHtml(match[2])}" alt="${escapeHtml(sanitizeMarkdownImageAlt(match[1]))}" data-note-image="true">`;
+
+    if (match[2]) {
+      html += `<img src="${escapeHtml(match[2])}" alt="${escapeHtml(sanitizeMarkdownImageAlt(match[1]))}" data-note-image="true">`;
+    } else if (match[4] && match[5]) {
+      html += `<a href="${escapeHtml(sanitizeLinkHref(match[5]))}" target="_blank" rel="noreferrer">${escapeHtml(match[4])}</a>`;
+    } else if (match[6]) {
+      html += `<code>${escapeHtml(match[6])}</code>`;
+    } else if (match[7]) {
+      html += `<strong>${escapeHtml(match[7])}</strong>`;
+    } else if (match[8]) {
+      html += `<s>${escapeHtml(match[8])}</s>`;
+    } else if (match[9]) {
+      html += `<u>${escapeHtml(match[9])}</u>`;
+    } else if (match[10]) {
+      html += `<em>${escapeHtml(match[10])}</em>`;
+    }
+
     lastIndex = index + match[0].length;
   }
 
@@ -133,22 +285,137 @@ function renderMarkdownLine(line: string) {
   return html || '<br>';
 }
 
+function renderTaskListItem(line: string) {
+  const match = line.match(TASK_MARKDOWN_PATTERN);
+  if (!match) {
+    return '';
+  }
+
+  const checked = match[1].toLowerCase() === 'x';
+  return [
+    '<li data-note-task-item="true">',
+    `<input type="checkbox" data-note-checkbox="true" contenteditable="false"${checked ? ' checked' : ''}>`,
+    `<span>${renderMarkdownInline(match[2])}</span>`,
+    '</li>',
+  ].join('');
+}
+
+function renderMarkdownList(lines: string[], ordered: boolean) {
+  const tag = ordered ? 'ol' : 'ul';
+  const items = lines
+    .map((line) => {
+      const match = line.match(ordered ? ORDERED_LIST_MARKDOWN_PATTERN : UNORDERED_LIST_MARKDOWN_PATTERN);
+      return match ? `<li>${renderMarkdownInline(match[1])}</li>` : '';
+    })
+    .join('');
+
+  return `<${tag}>${items}</${tag}>`;
+}
+
+function renderMarkdownTaskList(lines: string[]) {
+  return `<ul data-note-task-list="true">${lines.map(renderTaskListItem).join('')}</ul>`;
+}
+
 function markdownToEditorHtml(body: string) {
   if (!body) {
     return '';
   }
 
-  return body
-    .split('\n')
-    .map((line) => `<div>${renderMarkdownLine(line)}</div>`)
-    .join('');
+  const lines = body.split('\n');
+  const blocks: string[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+
+    if (FENCE_MARKDOWN_PATTERN.test(line)) {
+      const codeLines: string[] = [];
+      index += 1;
+      while (index < lines.length && !FENCE_MARKDOWN_PATTERN.test(lines[index])) {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+      if (index < lines.length) {
+        index += 1;
+      }
+      blocks.push(`<pre><code>${escapeHtml(codeLines.join('\n')) || '<br>'}</code></pre>`);
+      continue;
+    }
+
+    const headingMatch = line.match(HEADING_MARKDOWN_PATTERN);
+    if (headingMatch) {
+      blocks.push(`<h${headingMatch[1].length}>${renderMarkdownInline(headingMatch[2])}</h${headingMatch[1].length}>`);
+      index += 1;
+      continue;
+    }
+
+    if (TASK_MARKDOWN_PATTERN.test(line)) {
+      const taskLines: string[] = [];
+      while (index < lines.length && TASK_MARKDOWN_PATTERN.test(lines[index])) {
+        taskLines.push(lines[index]);
+        index += 1;
+      }
+      blocks.push(renderMarkdownTaskList(taskLines));
+      continue;
+    }
+
+    if (ORDERED_LIST_MARKDOWN_PATTERN.test(line)) {
+      const listLines: string[] = [];
+      while (index < lines.length && ORDERED_LIST_MARKDOWN_PATTERN.test(lines[index])) {
+        listLines.push(lines[index]);
+        index += 1;
+      }
+      blocks.push(renderMarkdownList(listLines, true));
+      continue;
+    }
+
+    if (UNORDERED_LIST_MARKDOWN_PATTERN.test(line)) {
+      const listLines: string[] = [];
+      while (index < lines.length && UNORDERED_LIST_MARKDOWN_PATTERN.test(lines[index])) {
+        listLines.push(lines[index]);
+        index += 1;
+      }
+      blocks.push(renderMarkdownList(listLines, false));
+      continue;
+    }
+
+    if (line.trim().startsWith('>')) {
+      const quoteLines: string[] = [];
+      while (index < lines.length && lines[index].trim().startsWith('>')) {
+        quoteLines.push(lines[index].replace(/^\s*>\s?/, ''));
+        index += 1;
+      }
+      blocks.push(`<blockquote>${quoteLines.map((quoteLine) => `<div>${renderMarkdownInline(quoteLine)}</div>`).join('')}</blockquote>`);
+      continue;
+    }
+
+    blocks.push(`<div>${renderMarkdownInline(line)}</div>`);
+    index += 1;
+  }
+
+  return blocks.join('');
 }
 
 function isElementNode(node: Node): node is HTMLElement {
   return node.nodeType === Node.ELEMENT_NODE;
 }
 
-function nodeToMarkdown(node: Node): string {
+function trimMarkdownWrapperContent(value: string) {
+  return value.replace(/^\s+|\s+$/g, '');
+}
+
+function wrapInlineMarkdown(content: string, prefix: string, suffix = prefix) {
+  const leading = content.match(/^\s*/)?.[0] ?? '';
+  const trailing = content.match(/\s*$/)?.[0] ?? '';
+  const inner = content.slice(leading.length, content.length - trailing.length);
+  return inner ? `${leading}${prefix}${inner}${suffix}${trailing}` : content;
+}
+
+function inlineNodesToMarkdown(nodes: Iterable<Node>) {
+  return Array.from(nodes).map(inlineNodeToMarkdown).join('');
+}
+
+function inlineNodeToMarkdown(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) {
     return node.textContent?.replace(/\u00a0/g, ' ') ?? '';
   }
@@ -169,7 +436,126 @@ function nodeToMarkdown(node: Node): string {
     return '\n';
   }
 
-  return Array.from(node.childNodes).map(nodeToMarkdown).join('');
+  const content = inlineNodesToMarkdown(node.childNodes);
+  const trimmedContent = trimMarkdownWrapperContent(content);
+
+  if (!trimmedContent) {
+    return content;
+  }
+
+  if (node.tagName === 'STRONG' || node.tagName === 'B') {
+    return wrapInlineMarkdown(content, '**');
+  }
+
+  if (node.tagName === 'EM' || node.tagName === 'I') {
+    return wrapInlineMarkdown(content, '*');
+  }
+
+  if (node.tagName === 'U') {
+    return wrapInlineMarkdown(content, '<u>', '</u>');
+  }
+
+  if (node.tagName === 'S' || node.tagName === 'STRIKE' || node.tagName === 'DEL') {
+    return wrapInlineMarkdown(content, '~~');
+  }
+
+  if (node.tagName === 'CODE' && node.parentElement?.tagName !== 'PRE') {
+    return wrapInlineMarkdown(content.replace(/`/g, ''), '`');
+  }
+
+  if (node.tagName === 'A') {
+    const href = node.getAttribute('href') ?? '';
+    return href ? wrapInlineMarkdown(content, '[', `](${sanitizeLinkHref(href)})`) : content;
+  }
+
+  return content;
+}
+
+function listItemToMarkdown(listItem: HTMLElement, ordered: boolean, index: number) {
+  const checkbox = listItem.querySelector<HTMLInputElement>('input[data-note-checkbox="true"]');
+  const clone = listItem.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll('input[data-note-checkbox="true"]').forEach((input) => input.remove());
+  const content = inlineNodesToMarkdown(clone.childNodes).replace(/\n+/g, ' ').trim();
+
+  if (checkbox) {
+    return `- [${checkbox.checked ? 'x' : ' '}] ${content}`;
+  }
+
+  return `${ordered ? `${index + 1}.` : '-'} ${content}`;
+}
+
+function blockNodeToMarkdown(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent?.replace(/\u00a0/g, ' ') ?? '';
+  }
+
+  if (!isElementNode(node)) {
+    return '';
+  }
+
+  if (node.tagName === 'H1' || node.tagName === 'H2' || node.tagName === 'H3') {
+    const depth = Number(node.tagName.slice(1));
+    return `${'#'.repeat(depth)} ${inlineNodesToMarkdown(node.childNodes).trim()}`;
+  }
+
+  if (node.tagName === 'BLOCKQUOTE') {
+    return Array.from(node.childNodes)
+      .map((child) => (isElementNode(child) ? inlineNodesToMarkdown(child.childNodes) : inlineNodeToMarkdown(child)).trim())
+      .filter(Boolean)
+      .map((line) => `> ${line}`)
+      .join('\n');
+  }
+
+  if (node.tagName === 'PRE') {
+    return `\`\`\`\n${node.textContent?.replace(/\u00a0/g, ' ') ?? ''}\n\`\`\``;
+  }
+
+  if (node.tagName === 'UL' || node.tagName === 'OL') {
+    const ordered = node.tagName === 'OL';
+    return Array.from(node.children)
+      .filter((child): child is HTMLElement => child.tagName === 'LI')
+      .map((child, index) => listItemToMarkdown(child, ordered, index))
+      .join('\n');
+  }
+
+  if (node.tagName === 'LI') {
+    return listItemToMarkdown(node, false, 0);
+  }
+
+  if (node.tagName === 'BR') {
+    return '';
+  }
+
+  return inlineNodesToMarkdown(node.childNodes).replace(/\n+$/g, '');
+}
+
+function convertSelectionListToTaskList() {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) {
+    return;
+  }
+
+  const node = getSelectionNode(selection);
+  const list = node instanceof HTMLElement ? node.closest('ul') : null;
+  if (!list) {
+    return;
+  }
+
+  list.setAttribute('data-note-task-list', 'true');
+  Array.from(list.children)
+    .filter((child): child is HTMLElement => child.tagName === 'LI')
+    .forEach((listItem) => {
+      listItem.setAttribute('data-note-task-item', 'true');
+      if (listItem.querySelector('input[data-note-checkbox="true"]')) {
+        return;
+      }
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.setAttribute('data-note-checkbox', 'true');
+      checkbox.setAttribute('contenteditable', 'false');
+      listItem.prepend(checkbox);
+    });
 }
 
 function editorToMarkdown(editor: HTMLElement) {
@@ -177,22 +563,16 @@ function editorToMarkdown(editor: HTMLElement) {
   let pendingLine = '';
 
   Array.from(editor.childNodes).forEach((node) => {
-    if (isElementNode(node) && BLOCK_TAGS.has(node.tagName)) {
+    if (isElementNode(node)) {
       if (pendingLine) {
         lines.push(pendingLine);
         pendingLine = '';
       }
-      lines.push(nodeToMarkdown(node).replace(/\n+$/g, ''));
+      lines.push(blockNodeToMarkdown(node).replace(/\n+$/g, ''));
       return;
     }
 
-    if (isElementNode(node) && node.tagName === 'BR') {
-      lines.push(pendingLine);
-      pendingLine = '';
-      return;
-    }
-
-    pendingLine += nodeToMarkdown(node);
+    pendingLine += inlineNodeToMarkdown(node);
   });
 
   if (pendingLine || lines.length === 0) {
@@ -200,6 +580,42 @@ function editorToMarkdown(editor: HTMLElement) {
   }
 
   return lines.join('\n').replace(/\u00a0/g, ' ');
+}
+
+function ToolbarButton({
+  active = false,
+  children,
+  label,
+  onClick,
+}: {
+  active?: boolean;
+  children: ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  const handleMouseDown = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    onClick();
+  };
+
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onMouseDown={handleMouseDown}
+      className={cn(
+        'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-stone-600 transition-colors hover:bg-stone-100',
+        active ? 'border-stone-300 bg-stone-100 text-stone-950' : 'border-transparent bg-transparent',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ToolbarDivider() {
+  return <span className="mx-1 h-6 w-px shrink-0 bg-stone-200" />;
 }
 
 export function DocumentNotesPage() {
@@ -213,6 +629,7 @@ export function DocumentNotesPage() {
   const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
   const [noteDropTarget, setNoteDropTarget] = useState<{ id: string; position: DropPosition } | null>(null);
   const [insertImageStatus, setInsertImageStatus] = useState<InsertImageStatus>('idle');
+  const [activeFormats, setActiveFormats] = useState<ActiveEditorFormats>(INITIAL_ACTIVE_FORMATS);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
   const lastSavedSnapshotRef = useRef('');
@@ -352,6 +769,30 @@ export function DocumentNotesPage() {
     triggerMarkdownDownload(draft.title, draft.body);
   };
 
+  const refreshActiveFormats = () => {
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+    if (!editor || !selection) {
+      setActiveFormats(INITIAL_ACTIVE_FORMATS);
+      return;
+    }
+
+    const selectionNode = getSelectionNode(selection);
+    if (!selectionNode || !editor.contains(selectionNode)) {
+      return;
+    }
+
+    setActiveFormats({
+      block: findSelectionBlock(editor, selection),
+      bold: readCommandState('bold'),
+      italic: readCommandState('italic'),
+      underline: readCommandState('underline'),
+      strikeThrough: readCommandState('strikeThrough'),
+      orderedList: selectionHasAncestorTag(editor, 'ol'),
+      unorderedList: selectionHasAncestorTag(editor, 'ul'),
+    });
+  };
+
   const saveEditorSelection = () => {
     const editor = editorRef.current;
     const selection = window.getSelection();
@@ -362,6 +803,7 @@ export function DocumentNotesPage() {
     const range = selection.getRangeAt(0);
     if (editor.contains(range.commonAncestorContainer)) {
       savedEditorSelectionRef.current = range.cloneRange();
+      refreshActiveFormats();
     }
   };
 
@@ -394,6 +836,82 @@ export function DocumentNotesPage() {
     const nextBody = editorToMarkdown(editor);
     lastEditorBodyRef.current = nextBody;
     setDraft((current) => (current.body === nextBody ? current : { ...current, body: nextBody }));
+    refreshActiveFormats();
+  };
+
+  const runEditorCommand = (command: string, value?: string) => {
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+
+    editor.focus();
+    restoreEditorSelection();
+    document.execCommand(command, false, value);
+    updateDraftBodyFromEditor();
+    saveEditorSelection();
+  };
+
+  const setEditorBlock = (block: EditorBlock) => {
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+
+    editor.focus();
+    restoreEditorSelection();
+    if (block === 'blockquote') {
+      document.execCommand('formatBlock', false, activeFormats.block === 'blockquote' ? 'div' : 'blockquote');
+    } else if (block === 'pre') {
+      document.execCommand('formatBlock', false, activeFormats.block === 'pre' ? 'div' : 'pre');
+    } else {
+      document.execCommand('formatBlock', false, block);
+    }
+    updateDraftBodyFromEditor();
+    saveEditorSelection();
+  };
+
+  const toggleTaskList = () => {
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+
+    editor.focus();
+    restoreEditorSelection();
+    document.execCommand('insertUnorderedList');
+    convertSelectionListToTaskList();
+    updateDraftBodyFromEditor();
+    saveEditorSelection();
+  };
+
+  const handleInsertLink = () => {
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+
+    editor.focus();
+    restoreEditorSelection();
+    const selection = window.getSelection();
+    const selectedText = selection?.toString().trim() ?? '';
+    const href = window.prompt('输入链接地址', selectedText.startsWith('http') ? selectedText : 'https://');
+    if (!href) {
+      return;
+    }
+
+    const normalizedHref = normalizeUserLinkHref(href);
+    if (selectedText) {
+      document.execCommand('createLink', false, normalizedHref);
+    } else {
+      document.execCommand(
+        'insertHTML',
+        false,
+        `<a href="${escapeHtml(normalizedHref)}" target="_blank" rel="noreferrer">${escapeHtml(href)}</a>`,
+      );
+    }
+    updateDraftBodyFromEditor();
+    saveEditorSelection();
   };
 
   const insertImageAtCursor = (src: string, alt: string) => {
@@ -462,6 +980,27 @@ export function DocumentNotesPage() {
     }
 
     insertPlainTextAtCursor(event.clipboardData.getData('text/plain'));
+  };
+
+  const handleEditorKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!(event.ctrlKey || event.metaKey)) {
+      return;
+    }
+
+    const key = event.key.toLowerCase();
+    if (key === 'b') {
+      event.preventDefault();
+      runEditorCommand('bold');
+    } else if (key === 'i') {
+      event.preventDefault();
+      runEditorCommand('italic');
+    } else if (key === 'u') {
+      event.preventDefault();
+      runEditorCommand('underline');
+    } else if (key === 'k') {
+      event.preventDefault();
+      handleInsertLink();
+    }
   };
 
   const handleDropNote = async (targetNoteId: string, position: DropPosition) => {
@@ -664,21 +1203,93 @@ export function DocumentNotesPage() {
                 </div>
               </div>
 
-              <div
-                aria-multiline="true"
-                className="note-rich-editor min-h-0 flex-1 overflow-y-auto bg-white px-6 py-6 font-sans text-base leading-8 text-stone-700 outline-none"
-                contentEditable
-                data-placeholder={t('noteBodyPlaceholder')}
-                onFocus={saveEditorSelection}
-                onInput={updateDraftBodyFromEditor}
-                onKeyUp={saveEditorSelection}
-                onMouseUp={saveEditorSelection}
-                onPaste={handlePasteNoteBody}
-                ref={editorRef}
-                role="textbox"
-                suppressContentEditableWarning
-                tabIndex={0}
-              />
+              <div className="flex min-h-0 flex-1 flex-col">
+                <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-stone-100 bg-stone-50/80 px-4 py-2">
+                  <ToolbarButton label="撤销" onClick={() => runEditorCommand('undo')}>
+                    <Undo2 className="h-4 w-4" />
+                  </ToolbarButton>
+                  <ToolbarButton label="重做" onClick={() => runEditorCommand('redo')}>
+                    <Redo2 className="h-4 w-4" />
+                  </ToolbarButton>
+                  <ToolbarDivider />
+                  <select
+                    aria-label="段落格式"
+                    title="段落格式"
+                    value={activeFormats.block}
+                    onFocus={restoreEditorSelection}
+                    onChange={(event) => setEditorBlock(event.target.value as EditorBlock)}
+                    className="h-8 rounded-lg border border-stone-200 bg-white px-2 text-sm text-stone-700 outline-none transition-colors hover:bg-stone-50 focus:border-accent"
+                  >
+                    <option value="div">正文</option>
+                    <option value="h1">一级标题</option>
+                    <option value="h2">二级标题</option>
+                    <option value="h3">三级标题</option>
+                    <option value="blockquote">引用</option>
+                    <option value="pre">代码块</option>
+                  </select>
+                  <ToolbarDivider />
+                  <ToolbarButton active={activeFormats.bold} label="加粗" onClick={() => runEditorCommand('bold')}>
+                    <Bold className="h-4 w-4" />
+                  </ToolbarButton>
+                  <ToolbarButton active={activeFormats.italic} label="斜体" onClick={() => runEditorCommand('italic')}>
+                    <Italic className="h-4 w-4" />
+                  </ToolbarButton>
+                  <ToolbarButton active={activeFormats.strikeThrough} label="删除线" onClick={() => runEditorCommand('strikeThrough')}>
+                    <Strikethrough className="h-4 w-4" />
+                  </ToolbarButton>
+                  <ToolbarButton active={activeFormats.underline} label="下划线" onClick={() => runEditorCommand('underline')}>
+                    <Underline className="h-4 w-4" />
+                  </ToolbarButton>
+                  <ToolbarButton active={activeFormats.block === 'pre'} label="代码块" onClick={() => setEditorBlock('pre')}>
+                    <Code2 className="h-4 w-4" />
+                  </ToolbarButton>
+                  <ToolbarButton active={activeFormats.block === 'blockquote'} label="引用" onClick={() => setEditorBlock('blockquote')}>
+                    <Quote className="h-4 w-4" />
+                  </ToolbarButton>
+                  <ToolbarDivider />
+                  <ToolbarButton active={activeFormats.unorderedList} label="无序列表" onClick={() => runEditorCommand('insertUnorderedList')}>
+                    <List className="h-4 w-4" />
+                  </ToolbarButton>
+                  <ToolbarButton active={activeFormats.orderedList} label="有序列表" onClick={() => runEditorCommand('insertOrderedList')}>
+                    <ListOrdered className="h-4 w-4" />
+                  </ToolbarButton>
+                  <ToolbarButton label="待办列表" onClick={toggleTaskList}>
+                    <ListChecks className="h-4 w-4" />
+                  </ToolbarButton>
+                  <ToolbarDivider />
+                  <ToolbarButton label="插入链接" onClick={handleInsertLink}>
+                    <Link className="h-4 w-4" />
+                  </ToolbarButton>
+                  <ToolbarButton label={insertImageStatus === 'loading' ? t('insertingImage') : t('insertImage')} onClick={() => fileInputRef.current?.click()}>
+                    <FileImage className="h-4 w-4" />
+                  </ToolbarButton>
+                  <ToolbarButton label="清除格式" onClick={() => runEditorCommand('removeFormat')}>
+                    <Eraser className="h-4 w-4" />
+                  </ToolbarButton>
+                </div>
+
+                <div
+                  aria-multiline="true"
+                  className="note-rich-editor min-h-0 flex-1 overflow-y-auto bg-white px-6 py-6 font-sans text-base leading-8 text-stone-700 outline-none"
+                  contentEditable
+                  data-placeholder={t('noteBodyPlaceholder')}
+                  onFocus={saveEditorSelection}
+                  onInput={updateDraftBodyFromEditor}
+                  onKeyDown={handleEditorKeyDown}
+                  onKeyUp={saveEditorSelection}
+                  onClick={(event) => {
+                    if ((event.target as HTMLElement).matches('input[data-note-checkbox="true"]')) {
+                      updateDraftBodyFromEditor();
+                    }
+                  }}
+                  onMouseUp={saveEditorSelection}
+                  onPaste={handlePasteNoteBody}
+                  ref={editorRef}
+                  role="textbox"
+                  suppressContentEditableWarning
+                  tabIndex={0}
+                />
+              </div>
             </section>
           </div>
         )}
