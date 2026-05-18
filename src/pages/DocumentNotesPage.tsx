@@ -1167,15 +1167,6 @@ export function DocumentNotesPage() {
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onMouseDown={saveEditorSelection}
-                      onClick={() => fileInputRef.current?.click()}
-                      className="inline-flex items-center justify-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50"
-                    >
-                      <FileImage className="h-4 w-4" />
-                      <span>{insertImageStatus === 'loading' ? t('insertingImage') : t('insertImage')}</span>
-                    </button>
                     <input
                       ref={fileInputRef}
                       type="file"

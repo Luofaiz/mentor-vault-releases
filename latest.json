@@ -1,7 +1,7 @@
 {
-  "version": "0.2.52",
-  "notes": "Hotfix: fix the v0.2.51 startup crash caused by an invalid regular expression in the Electron main process. The rich text note toolbar remains included.",
+  "version": "0.2.53",
+  "notes": "文档笔记移除标题栏里的单独插入图片按钮，保留工具栏里的图片插入入口。",
   "downloadUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe",
-  "downloadSha256": "65a7c77d6af115b20296fec0dd839ef73abc6c0290f087b45c21ef9d237ee31e",
+  "downloadSha256": "4eeaacbcabba5738a100c1370595d66fc5313b0e3c386a3a0d1abf0f1fc9328a",
   "releaseUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest"
 }
