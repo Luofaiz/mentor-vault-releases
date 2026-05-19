@@ -812,12 +812,21 @@ export function DocumentNotesPage() {
   const lastEditorBodyRef = useRef('');
   const saveRequestSeqRef = useRef(0);
   const savedEditorSelectionRef = useRef<Range | null>(null);
+  const syncedNoteIdRef = useRef<string | null>(null);
 
   const focusFindInput = () => {
     window.requestAnimationFrame(() => {
       findInputRef.current?.focus();
       findInputRef.current?.select();
     });
+  };
+
+  const resetNoteFindState = () => {
+    setFindQuery('');
+    setFindMatchCount(0);
+    setFindMatchIndex(0);
+    findMatchesRef.current = [];
+    clearNoteFindHighlights();
   };
 
   const orderedNotes = useMemo<DocumentNote[]>(
@@ -854,22 +863,33 @@ export function DocumentNotesPage() {
 
   useEffect(() => {
     if (!selectedNote) {
+      syncedNoteIdRef.current = null;
       setDraft(createFallbackNote());
       lastSavedSnapshotRef.current = '';
       lastEditorBodyRef.current = '';
       saveRequestSeqRef.current += 1;
       setSaveState('idle');
+      resetNoteFindState();
       return;
     }
 
-    setDraft(selectedNote);
-    lastEditorBodyRef.current = '';
-    lastSavedSnapshotRef.current = JSON.stringify({
+    const selectedSnapshot = JSON.stringify({
       title: selectedNote.title,
       body: selectedNote.body,
     });
+
+    if (syncedNoteIdRef.current === selectedNote.id) {
+      return;
+    }
+
+    lastSavedSnapshotRef.current = selectedSnapshot;
+    syncedNoteIdRef.current = selectedNote.id;
+    savedEditorSelectionRef.current = null;
+    setDraft(selectedNote);
+    lastEditorBodyRef.current = '';
     saveRequestSeqRef.current += 1;
     setSaveState('saved');
+    resetNoteFindState();
   }, [selectedNote]);
 
   useEffect(() => {
@@ -878,6 +898,8 @@ export function DocumentNotesPage() {
       return;
     }
 
+    clearNoteFindHighlights();
+    findMatchesRef.current = [];
     editor.innerHTML = markdownToEditorHtml(draft.body);
     lastEditorBodyRef.current = draft.body;
   }, [draft.body, selectedNoteId]);
@@ -916,8 +938,7 @@ export function DocumentNotesPage() {
       if (nextIndex !== findMatchIndex) {
         setFindMatchIndex(nextIndex);
       }
-      const hasNativeHighlight = renderNoteFindHighlights(matches, nextIndex);
-      revealNoteFindMatch(matches[nextIndex], !hasNativeHighlight);
+      renderNoteFindHighlights(matches, nextIndex);
     });
 
     return () => window.cancelAnimationFrame(animationFrame);

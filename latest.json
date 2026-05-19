@@ -1,7 +1,7 @@
 {
-  "version": "0.2.54",
-  "notes": "新增笔记正文内查找：支持 Ctrl+F 打开、关键词高亮、上下跳转和 Esc 关闭。\n优化老师时间线：事件标题改为可选，不再误显示为“职称”且不再必填。\n老师时间线记录支持编辑和删除，桌面版本地数据会同步保存。",
+  "version": "0.2.55",
+  "notes": "修复笔记编辑器偶发无法输入的问题：自动保存回写当前笔记时不再重置编辑器 DOM 和选区。\n修复查找高亮在笔记内容重建后可能保留旧 Range 的问题。\n优化查找交互：笔记内容变化时只刷新高亮，不再强制跳转或抢选区。",
   "downloadUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe",
-  "downloadSha256": "e2c396a5ade4e0a9ac6fafe416795447f399996e1c928742db6b910f55b58f0f",
+  "downloadSha256": "51196f03beaa44dbdf2aaa41c0f5a9781f09aac3d8dc0cd1975fa6682134a581",
   "releaseUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest"
 }
