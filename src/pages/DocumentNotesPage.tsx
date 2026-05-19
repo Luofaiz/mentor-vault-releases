@@ -12,6 +12,8 @@ import {
 } from 'react';
 import {
   Bold,
+  ChevronDown,
+  ChevronUp,
   Code2,
   Download,
   Eraser,
@@ -30,6 +32,7 @@ import {
   Trash2,
   Underline,
   Undo2,
+  X,
 } from 'lucide-react';
 import { useDocumentNotes } from '../hooks/useDocumentNotes';
 import { useListOrderPreferences } from '../hooks/useListOrderPreferences';
@@ -52,6 +55,17 @@ interface ActiveEditorFormats {
   unorderedList: boolean;
 }
 
+interface TextNodeSegment {
+  node: Text;
+  start: number;
+  end: number;
+}
+
+interface CssHighlightRegistry {
+  delete: (name: string) => boolean;
+  set: (name: string, highlight: unknown) => void;
+}
+
 const MARKDOWN_IMAGE_PATTERN = /!\[([^\]]*)\]\((data:image\/[^)\s]+|https?:\/\/[^)\s]+|blob:[^)]+|file:[^)]+)\)/g;
 const MARKDOWN_INLINE_PATTERN =
   /!\[([^\]]*)\]\((data:image\/[^)\s]+|https?:\/\/[^)\s]+|blob:[^)]+|file:[^)]+)\)|\[([^\]]+)\]\(([^)\s]+)\)|`([^`\n]+)`|\*\*([^*\n]+)\*\*|~~([^~\n]+)~~|<u>(.*?)<\/u>|\*([^*\n]+)\*/g;
@@ -60,6 +74,9 @@ const TASK_MARKDOWN_PATTERN = /^\s*[-*]\s+\[([ xX])\]\s+(.*)$/;
 const UNORDERED_LIST_MARKDOWN_PATTERN = /^\s*[-*]\s+(.*)$/;
 const ORDERED_LIST_MARKDOWN_PATTERN = /^\s*\d+[.)]\s+(.*)$/;
 const FENCE_MARKDOWN_PATTERN = /^\s*```\s*$/;
+const NOTE_FIND_HIGHLIGHT_NAME = 'mentor-note-find';
+const NOTE_FIND_CURRENT_HIGHLIGHT_NAME = 'mentor-note-find-current';
+const NOTE_FIND_HIGHLIGHT_STYLE_ID = 'mentor-note-find-highlight-style';
 const INITIAL_ACTIVE_FORMATS: ActiveEditorFormats = {
   block: 'div',
   bold: false,
@@ -118,6 +135,159 @@ function selectionHasAncestorTag(editor: HTMLElement, tagName: string) {
 
   const ancestor = node.closest(tagName);
   return Boolean(ancestor && editor.contains(ancestor));
+}
+
+function getCssHighlightRegistry() {
+  if (typeof CSS === 'undefined') {
+    return null;
+  }
+
+  return (CSS as unknown as { highlights?: CssHighlightRegistry }).highlights ?? null;
+}
+
+function createCssHighlight(ranges: Range[]) {
+  const HighlightConstructor = (window as unknown as { Highlight?: new (...ranges: Range[]) => unknown }).Highlight;
+  return HighlightConstructor ? new HighlightConstructor(...ranges) : null;
+}
+
+function canUseCssHighlights() {
+  return Boolean(getCssHighlightRegistry() && (window as unknown as { Highlight?: unknown }).Highlight);
+}
+
+function clearNoteFindHighlights() {
+  const registry = getCssHighlightRegistry();
+  registry?.delete(NOTE_FIND_HIGHLIGHT_NAME);
+  registry?.delete(NOTE_FIND_CURRENT_HIGHLIGHT_NAME);
+}
+
+function ensureNoteFindHighlightStyle() {
+  if (document.getElementById(NOTE_FIND_HIGHLIGHT_STYLE_ID)) {
+    return;
+  }
+
+  const style = document.createElement('style');
+  style.id = NOTE_FIND_HIGHLIGHT_STYLE_ID;
+  style.textContent = `
+    ::highlight(${NOTE_FIND_HIGHLIGHT_NAME}) {
+      background: rgba(253, 224, 71, 0.55);
+      color: inherit;
+    }
+
+    ::highlight(${NOTE_FIND_CURRENT_HIGHLIGHT_NAME}) {
+      background: rgba(177, 95, 47, 0.32);
+      color: inherit;
+    }
+  `;
+  document.head.append(style);
+}
+
+function collectEditorText(editor: HTMLElement) {
+  const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) => (node.textContent ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
+  });
+  const segments: TextNodeSegment[] = [];
+  let text = '';
+  let currentNode = walker.nextNode();
+
+  while (currentNode) {
+    const textNode = currentNode as Text;
+    const value = textNode.textContent ?? '';
+    if (value) {
+      segments.push({
+        node: textNode,
+        start: text.length,
+        end: text.length + value.length,
+      });
+      text += value;
+    }
+    currentNode = walker.nextNode();
+  }
+
+  return { segments, text };
+}
+
+function createRangeFromTextOffsets(segments: TextNodeSegment[], start: number, end: number) {
+  const startSegment = segments.find((segment) => start >= segment.start && start < segment.end);
+  const endSegment = segments.find((segment) => end > segment.start && end <= segment.end);
+
+  if (!startSegment || !endSegment) {
+    return null;
+  }
+
+  const range = document.createRange();
+  range.setStart(startSegment.node, start - startSegment.start);
+  range.setEnd(endSegment.node, end - endSegment.start);
+  return range;
+}
+
+function findEditorTextRanges(editor: HTMLElement, query: string) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) {
+    return [];
+  }
+
+  const { segments, text } = collectEditorText(editor);
+  const haystack = text.toLowerCase();
+  const ranges: Range[] = [];
+  let searchFrom = 0;
+
+  while (searchFrom < haystack.length) {
+    const matchStart = haystack.indexOf(needle, searchFrom);
+    if (matchStart === -1) {
+      break;
+    }
+
+    const range = createRangeFromTextOffsets(segments, matchStart, matchStart + needle.length);
+    if (range) {
+      ranges.push(range);
+    }
+    searchFrom = matchStart + needle.length;
+  }
+
+  return ranges;
+}
+
+function renderNoteFindHighlights(matches: Range[], currentIndex: number) {
+  const registry = getCssHighlightRegistry();
+  if (!registry || !canUseCssHighlights()) {
+    return false;
+  }
+
+  ensureNoteFindHighlightStyle();
+  registry.delete(NOTE_FIND_HIGHLIGHT_NAME);
+  registry.delete(NOTE_FIND_CURRENT_HIGHLIGHT_NAME);
+
+  if (matches.length > 0) {
+    const allMatchesHighlight = createCssHighlight(matches);
+    if (allMatchesHighlight) {
+      registry.set(NOTE_FIND_HIGHLIGHT_NAME, allMatchesHighlight);
+    }
+  }
+
+  const currentMatch = matches[currentIndex];
+  if (currentMatch) {
+    const currentMatchHighlight = createCssHighlight([currentMatch]);
+    if (currentMatchHighlight) {
+      registry.set(NOTE_FIND_CURRENT_HIGHLIGHT_NAME, currentMatchHighlight);
+    }
+  }
+
+  return true;
+}
+
+function revealNoteFindMatch(match: Range | undefined, shouldSelectFallback: boolean) {
+  if (!match) {
+    return;
+  }
+
+  if (shouldSelectFallback) {
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(match.cloneRange());
+  }
+
+  const matchElement = match.startContainer instanceof Element ? match.startContainer : match.startContainer.parentElement;
+  matchElement?.scrollIntoView({ block: 'center' });
 }
 
 function getDropPosition(event: DragEvent<HTMLElement>): DropPosition {
@@ -630,12 +800,25 @@ export function DocumentNotesPage() {
   const [noteDropTarget, setNoteDropTarget] = useState<{ id: string; position: DropPosition } | null>(null);
   const [insertImageStatus, setInsertImageStatus] = useState<InsertImageStatus>('idle');
   const [activeFormats, setActiveFormats] = useState<ActiveEditorFormats>(INITIAL_ACTIVE_FORMATS);
+  const [isFindOpen, setIsFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState('');
+  const [findMatchCount, setFindMatchCount] = useState(0);
+  const [findMatchIndex, setFindMatchIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const findInputRef = useRef<HTMLInputElement | null>(null);
+  const findMatchesRef = useRef<Range[]>([]);
   const lastSavedSnapshotRef = useRef('');
   const lastEditorBodyRef = useRef('');
   const saveRequestSeqRef = useRef(0);
   const savedEditorSelectionRef = useRef<Range | null>(null);
+
+  const focusFindInput = () => {
+    window.requestAnimationFrame(() => {
+      findInputRef.current?.focus();
+      findInputRef.current?.select();
+    });
+  };
 
   const orderedNotes = useMemo<DocumentNote[]>(
     () => orderItems(notes, preferences.noteIds, (note) => note.id),
@@ -698,6 +881,70 @@ export function DocumentNotesPage() {
     editor.innerHTML = markdownToEditorHtml(draft.body);
     lastEditorBodyRef.current = draft.body;
   }, [draft.body, selectedNoteId]);
+
+  useEffect(() => {
+    if (!isFindOpen) {
+      return;
+    }
+
+    focusFindInput();
+  }, [isFindOpen]);
+
+  useEffect(() => {
+    if (!isFindOpen) {
+      clearNoteFindHighlights();
+      findMatchesRef.current = [];
+      setFindMatchCount(0);
+      setFindMatchIndex(0);
+      return;
+    }
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      const editor = editorRef.current;
+      if (!editor) {
+        clearNoteFindHighlights();
+        findMatchesRef.current = [];
+        setFindMatchCount(0);
+        setFindMatchIndex(0);
+        return;
+      }
+
+      const matches = findEditorTextRanges(editor, findQuery);
+      const nextIndex = matches.length > 0 ? Math.min(findMatchIndex, matches.length - 1) : 0;
+      findMatchesRef.current = matches;
+      setFindMatchCount(matches.length);
+      if (nextIndex !== findMatchIndex) {
+        setFindMatchIndex(nextIndex);
+      }
+      const hasNativeHighlight = renderNoteFindHighlights(matches, nextIndex);
+      revealNoteFindMatch(matches[nextIndex], !hasNativeHighlight);
+    });
+
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [draft.body, findMatchIndex, findQuery, isFindOpen, selectedNoteId]);
+
+  useEffect(() => {
+    const matches = findMatchesRef.current;
+    const hasNativeHighlight = renderNoteFindHighlights(matches, findMatchIndex);
+    revealNoteFindMatch(matches[findMatchIndex], !hasNativeHighlight);
+  }, [findMatchIndex, findMatchCount]);
+
+  useEffect(() => clearNoteFindHighlights, []);
+
+  useEffect(() => {
+    const handleFindShortcut = (event: globalThis.KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'f' || !selectedNoteId) {
+        return;
+      }
+
+      event.preventDefault();
+      setIsFindOpen(true);
+      focusFindInput();
+    };
+
+    document.addEventListener('keydown', handleFindShortcut);
+    return () => document.removeEventListener('keydown', handleFindShortcut);
+  }, [selectedNoteId]);
 
   useEffect(() => {
     if (!selectedNoteId) {
@@ -767,6 +1014,44 @@ export function DocumentNotesPage() {
 
   const handleExportMarkdown = () => {
     triggerMarkdownDownload(draft.title, draft.body);
+  };
+
+  const openNoteFind = () => {
+    if (!selectedNoteId) {
+      return;
+    }
+
+    setIsFindOpen(true);
+    focusFindInput();
+  };
+
+  const closeNoteFind = () => {
+    setIsFindOpen(false);
+    setFindQuery('');
+    setFindMatchCount(0);
+    setFindMatchIndex(0);
+    findMatchesRef.current = [];
+    clearNoteFindHighlights();
+    editorRef.current?.focus();
+  };
+
+  const goToFindMatch = (direction: 1 | -1) => {
+    const matchCount = findMatchesRef.current.length;
+    if (matchCount === 0) {
+      return;
+    }
+
+    setFindMatchIndex((current) => (current + direction + matchCount) % matchCount);
+  };
+
+  const handleFindInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      goToFindMatch(event.shiftKey ? -1 : 1);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      closeNoteFind();
+    }
   };
 
   const refreshActiveFormats = () => {
@@ -1000,6 +1285,9 @@ export function DocumentNotesPage() {
     } else if (key === 'k') {
       event.preventDefault();
       handleInsertLink();
+    } else if (key === 'f') {
+      event.preventDefault();
+      openNoteFind();
     }
   };
 
@@ -1254,10 +1542,63 @@ export function DocumentNotesPage() {
                   <ToolbarButton label={insertImageStatus === 'loading' ? t('insertingImage') : t('insertImage')} onClick={() => fileInputRef.current?.click()}>
                     <FileImage className="h-4 w-4" />
                   </ToolbarButton>
+                  <ToolbarButton label="查找当前笔记" onClick={openNoteFind}>
+                    <Search className="h-4 w-4" />
+                  </ToolbarButton>
                   <ToolbarButton label="清除格式" onClick={() => runEditorCommand('removeFormat')}>
                     <Eraser className="h-4 w-4" />
                   </ToolbarButton>
                 </div>
+
+                {isFindOpen && (
+                  <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-stone-100 bg-white px-4 py-2">
+                    <Search className="h-4 w-4 text-stone-400" />
+                    <input
+                      ref={findInputRef}
+                      type="search"
+                      value={findQuery}
+                      onChange={(event) => {
+                        setFindQuery(event.target.value);
+                        setFindMatchIndex(0);
+                      }}
+                      onKeyDown={handleFindInputKeyDown}
+                      placeholder="查找当前笔记"
+                      className="h-8 min-w-[12rem] flex-1 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-700 outline-none transition-colors placeholder:text-stone-300 focus:border-accent focus:bg-white"
+                    />
+                    <span className="min-w-12 text-center text-xs text-stone-500">
+                      {findQuery.trim() ? `${findMatchCount > 0 ? findMatchIndex + 1 : 0}/${findMatchCount}` : '0/0'}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label="上一个"
+                      title="上一个"
+                      disabled={findMatchCount === 0}
+                      onClick={() => goToFindMatch(-1)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 text-stone-600 transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="下一个"
+                      title="下一个"
+                      disabled={findMatchCount === 0}
+                      onClick={() => goToFindMatch(1)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 text-stone-600 transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="关闭查找"
+                      title="关闭查找"
+                      onClick={closeNoteFind}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 text-stone-600 transition-colors hover:bg-stone-50"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
 
                 <div
                   aria-multiline="true"

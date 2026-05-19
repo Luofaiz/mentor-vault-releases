@@ -373,6 +373,8 @@ export function ProfessorDirectoryPage({
           await onCreateTimelineEvent(draft);
           await timeline.refresh();
         }}
+        onUpdateEvent={timeline.update}
+        onDeleteEvent={timeline.remove}
       />
     </div>
   );

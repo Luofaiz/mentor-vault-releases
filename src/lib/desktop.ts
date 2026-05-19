@@ -1,5 +1,5 @@
 import type { Professor, ProfessorDraft, ProfessorFilters } from '../types/professor';
-import type { TimelineEvent, TimelineEventDraft } from '../types/timeline';
+import type { TimelineEvent, TimelineEventDraft, TimelineEventUpdate } from '../types/timeline';
 import type { DocumentNote, DocumentNoteInput } from '../types/note';
 import type { ListOrderPreferences } from '../types/listOrderPreferences';
 
@@ -52,6 +52,8 @@ export interface VibeDesktopApi {
   timeline: {
     list: (professorId: string) => Promise<TimelineEvent[]>;
     create: (draft: TimelineEventDraft) => Promise<TimelineEvent>;
+    update: (id: string, input: TimelineEventUpdate) => Promise<TimelineEvent | null>;
+    delete: (id: string) => Promise<void>;
   };
   notes: {
     list: () => Promise<DocumentNote[]>;

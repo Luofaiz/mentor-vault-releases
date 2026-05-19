@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('vibe', {
   timeline: {
     list: (professorId) => ipcRenderer.invoke('timeline:list', professorId),
     create: (draft) => ipcRenderer.invoke('timeline:create', draft),
+    update: (id, input) => ipcRenderer.invoke('timeline:update', id, input),
+    delete: (id) => ipcRenderer.invoke('timeline:delete', id),
   },
   notes: {
     list: () => ipcRenderer.invoke('notes:list'),

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { createTimelineEvent, listTimelineEvents } from '../lib/timeline';
+import { createTimelineEvent, deleteTimelineEvent, listTimelineEvents, updateTimelineEvent } from '../lib/timeline';
 import { useI18n } from '../lib/i18n';
-import type { TimelineEvent, TimelineEventDraft } from '../types/timeline';
+import type { TimelineEvent, TimelineEventDraft, TimelineEventUpdate } from '../types/timeline';
 
 export function useTimeline(professorId: string | null) {
   const { t } = useI18n();
@@ -38,11 +38,23 @@ export function useTimeline(professorId: string | null) {
     await refresh();
   };
 
+  const update = async (id: string, input: TimelineEventUpdate) => {
+    await updateTimelineEvent(id, input);
+    await refresh();
+  };
+
+  const remove = async (id: string) => {
+    await deleteTimelineEvent(id);
+    await refresh();
+  };
+
   return {
     events,
     isLoading,
     error,
     refresh,
     create,
+    update,
+    remove,
   };
 }

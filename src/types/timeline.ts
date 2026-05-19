@@ -25,3 +25,5 @@ export interface TimelineEventDraft {
   description: string;
   eventDate: string;
 }
+
+export type TimelineEventUpdate = TimelineEventDraft;

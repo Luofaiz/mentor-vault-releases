@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { CalendarClock, Plus, X } from 'lucide-react';
+import { CalendarClock, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
-import { TIMELINE_EVENT_TYPES, type TimelineEvent, type TimelineEventDraft } from '../types/timeline';
+import { TIMELINE_EVENT_TYPES, type TimelineEvent, type TimelineEventDraft, type TimelineEventUpdate } from '../types/timeline';
 import type { Professor } from '../types/professor';
 
 interface ProfessorTimelineDrawerProps {
@@ -12,6 +12,8 @@ interface ProfessorTimelineDrawerProps {
   error: string | null;
   onClose: () => void;
   onCreateEvent: (draft: TimelineEventDraft) => Promise<void>;
+  onUpdateEvent: (id: string, input: TimelineEventUpdate) => Promise<void>;
+  onDeleteEvent: (id: string) => Promise<void>;
 }
 
 const EMPTY_EVENT = {
@@ -37,6 +39,8 @@ export function ProfessorTimelineDrawer({
   error,
   onClose,
   onCreateEvent,
+  onUpdateEvent,
+  onDeleteEvent,
 }: ProfessorTimelineDrawerProps) {
   const { getTimelineTypeLabel, t } = useI18n();
   const [draft, setDraft] = useState<{
@@ -45,6 +49,7 @@ export function ProfessorTimelineDrawer({
     description: string;
     eventDate: string;
   }>(EMPTY_EVENT);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -56,6 +61,7 @@ export function ProfessorTimelineDrawer({
       ...EMPTY_EVENT,
       eventDate: new Date().toISOString().slice(0, 10),
     });
+    setEditingEventId(null);
   }, [open, professor]);
 
   if (!open || !professor) {
@@ -66,19 +72,54 @@ export function ProfessorTimelineDrawer({
     event.preventDefault();
     setIsSubmitting(true);
     try {
-      await onCreateEvent({
+      const input = {
         professorId: professor.id,
         type: draft.type,
         title: draft.title,
         description: draft.description,
         eventDate: draft.eventDate,
-      });
+      };
+      if (editingEventId) {
+        await onUpdateEvent(editingEventId, input);
+      } else {
+        await onCreateEvent(input);
+      }
       setDraft({
         ...EMPTY_EVENT,
         eventDate: new Date().toISOString().slice(0, 10),
       });
+      setEditingEventId(null);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleEditEvent = (timelineEvent: TimelineEvent) => {
+    setEditingEventId(timelineEvent.id);
+    setDraft({
+      type: timelineEvent.type,
+      title: timelineEvent.title,
+      description: timelineEvent.description,
+      eventDate: timelineEvent.eventDate || new Date().toISOString().slice(0, 10),
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingEventId(null);
+    setDraft({
+      ...EMPTY_EVENT,
+      eventDate: new Date().toISOString().slice(0, 10),
+    });
+  };
+
+  const handleDeleteEvent = async (timelineEvent: TimelineEvent) => {
+    if (!window.confirm(t('deleteTimelineEventConfirm'))) {
+      return;
+    }
+
+    await onDeleteEvent(timelineEvent.id);
+    if (editingEventId === timelineEvent.id) {
+      handleCancelEdit();
     }
   };
 
@@ -131,11 +172,31 @@ export function ProfessorTimelineDrawer({
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-400">{timelineEvent.eventDate}</p>
-                        <h3 className="mt-2 text-lg font-semibold tracking-tight text-stone-900">{timelineEvent.title}</h3>
+                        <h3 className="mt-2 text-lg font-semibold tracking-tight text-stone-900">
+                          {timelineEvent.title || getTimelineTypeLabel(timelineEvent.type)}
+                        </h3>
                       </div>
-                      <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${EVENT_TONE[timelineEvent.type]}`}>
-                        {getTimelineTypeLabel(timelineEvent.type)}
-                      </span>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${EVENT_TONE[timelineEvent.type]}`}>
+                          {getTimelineTypeLabel(timelineEvent.type)}
+                        </span>
+                        <button
+                          type="button"
+                          title={t('edit')}
+                          onClick={() => handleEditEvent(timelineEvent)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-stone-200 text-stone-500 transition-colors hover:bg-stone-50 hover:text-stone-900"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          title={t('delete')}
+                          onClick={() => void handleDeleteEvent(timelineEvent)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-rose-100 text-rose-500 transition-colors hover:bg-rose-50 hover:text-rose-700"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
                     {timelineEvent.description && (
                       <p className="mt-3 text-sm leading-7 text-stone-600">{timelineEvent.description}</p>
@@ -147,8 +208,12 @@ export function ProfessorTimelineDrawer({
           </div>
 
           <div className="overflow-y-auto px-8 py-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-400">{t('addEvent')}</p>
-            <h3 className="mt-2 text-2xl font-semibold tracking-tight text-stone-900">{t('logInteraction')}</h3>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-400">
+              {editingEventId ? t('editTimelineEvent') : t('addEvent')}
+            </p>
+            <h3 className="mt-2 text-2xl font-semibold tracking-tight text-stone-900">
+              {editingEventId ? t('editTimelineEvent') : t('logInteraction')}
+            </h3>
             <p className="mt-2 text-sm leading-6 text-stone-500">
               {t('timelineIntro')}
             </p>
@@ -170,11 +235,10 @@ export function ProfessorTimelineDrawer({
               </label>
 
               <label className="block space-y-2">
-                <span className="text-sm font-medium text-stone-600">{t('title')}</span>
+                <span className="text-sm font-medium text-stone-600">{t('timelineEventTitle')}</span>
                 <input
                   value={draft.title}
                   onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
-                  required
                   className="w-full rounded-2xl border border-stone-200 px-4 py-3 outline-none transition-colors focus:border-accent"
                 />
               </label>
@@ -200,14 +264,25 @@ export function ProfessorTimelineDrawer({
                 />
               </label>
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-ink px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Plus className="h-4 w-4" />
-                <span>{isSubmitting ? t('saving') : t('addTimelineEvent')}</span>
-              </button>
+              <div className="flex gap-2">
+                {editingEventId && (
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="inline-flex flex-1 items-center justify-center rounded-full border border-stone-200 px-4 py-3 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50"
+                  >
+                    {t('cancel')}
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-ink px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {editingEventId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  <span>{isSubmitting ? t('saving') : editingEventId ? t('saveChanges') : t('addTimelineEvent')}</span>
+                </button>
+              </div>
             </form>
           </div>
         </div>

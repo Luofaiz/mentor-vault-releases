@@ -1,7 +1,7 @@
 {
-  "version": "0.2.53",
-  "notes": "文档笔记移除标题栏里的单独插入图片按钮，保留工具栏里的图片插入入口。",
+  "version": "0.2.54",
+  "notes": "新增笔记正文内查找：支持 Ctrl+F 打开、关键词高亮、上下跳转和 Esc 关闭。\n优化老师时间线：事件标题改为可选，不再误显示为“职称”且不再必填。\n老师时间线记录支持编辑和删除，桌面版本地数据会同步保存。",
   "downloadUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest/download/MentorVaultSetup.exe",
-  "downloadSha256": "4eeaacbcabba5738a100c1370595d66fc5313b0e3c386a3a0d1abf0f1fc9328a",
+  "downloadSha256": "e2c396a5ade4e0a9ac6fafe416795447f399996e1c928742db6b910f55b58f0f",
   "releaseUrl": "https://github.com/Luofaiz/mentor-vault/releases/latest"
 }

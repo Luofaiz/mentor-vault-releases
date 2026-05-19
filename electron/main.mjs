@@ -1370,6 +1370,16 @@ function normalizeDraft(draft) {
   };
 }
 
+function normalizeTimelineEventDraft(draft) {
+  return {
+    professorId: String(draft?.professorId ?? '').trim(),
+    type: String(draft?.type ?? 'Note'),
+    title: String(draft?.title ?? '').trim(),
+    description: String(draft?.description ?? '').trim(),
+    eventDate: normalizeDateValue(draft?.eventDate),
+  };
+}
+
 ipcMain.handle('system:get-runtime-info', async () => ({
   platform: process.platform,
   storageMode: 'desktop-json',
@@ -1477,12 +1487,28 @@ ipcMain.handle('timeline:create', async (_event, draft) => {
   const store = await ensureStore();
   const record = {
     id: crypto.randomUUID(),
-    ...draft,
+    ...normalizeTimelineEventDraft(draft),
     createdAt: Date.now(),
   };
   store.timelineEvents.unshift(record);
   await saveStore(store);
   return record;
+});
+
+ipcMain.handle('timeline:update', async (_event, id, input) => {
+  const store = await ensureStore();
+  const normalized = normalizeTimelineEventDraft(input);
+  store.timelineEvents = store.timelineEvents.map((timelineEvent) =>
+    timelineEvent.id === id ? { ...timelineEvent, ...normalized } : timelineEvent,
+  );
+  await saveStore(store);
+  return store.timelineEvents.find((timelineEvent) => timelineEvent.id === id) ?? null;
+});
+
+ipcMain.handle('timeline:delete', async (_event, id) => {
+  const store = await ensureStore();
+  store.timelineEvents = store.timelineEvents.filter((timelineEvent) => timelineEvent.id !== id);
+  await saveStore(store);
 });
 
 ipcMain.handle('notes:list', async () => {

@@ -799,6 +799,8 @@ export function SchoolDirectoryPage({
           await onCreateTimelineEvent(draft);
           await timeline.refresh();
         }}
+        onUpdateEvent={timeline.update}
+        onDeleteEvent={timeline.remove}
       />
     </div>
   );
